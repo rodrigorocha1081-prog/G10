@@ -4,8 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agrupamento de Escolas por Proximidade</title>
-    <!-- Carregamento do Tailwind CSS para estilização -->
+    
+    <!-- Configuração do Tailwind CSS com a nova cor principal -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              mainBlue: {
+                50: '#eef2f7',
+                100: '#dde5ed',
+                300: '#a3b7d1',
+                500: '#274e82', // A cor especificada
+                600: '#234676',
+                700: '#1e3d64',
+                800: '#193352',
+              }
+            }
+          }
+        }
+      }
+    </script>
     <style>
         /* Define a fonte Inter */
         html { font-family: 'Inter', sans-serif; }
@@ -33,7 +53,7 @@
         }
         .loading-spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #3b82f6; /* Tailwind blue-500 */
+            border-left-color: #274e82; /* mainBlue-500 */
             border-radius: 50%;
             width: 24px;
             height: 24px;
@@ -56,38 +76,35 @@
     <div id="message-overlay" class="hidden message-box-overlay"></div>
 
     <div class="container mx-auto p-4 md:p-6">
-        <!-- Título e Instruções -->
+        <!-- Título e Instruções (Cor atualizada para mainBlue-700) -->
         <header class="mb-4">
-            <h1 class="text-3xl font-bold text-indigo-700 mb-1">Agrupamento de Escolas por Proximidade (MA)</h1>
+            <h1 class="text-3xl font-bold text-mainBlue-700 mb-1">Agrupamento de Escolas por Proximidade (MA)</h1>
             <p class="text-sm text-gray-500">
-                Carregue sua lista de escolas para agrupá-las em clusters de proximidade (raio de 5km) e pesquisar provedores por região.
+                Carregue sua lista de escolas para agrupá-las em Grupos de proximidade (raio de 5km) e pesquisar provedores por região.
             </p>
         </header>
 
-        <!-- Seção de Upload e Status -->
+        <!-- Seção de Upload e Status (Cor atualizada para mainBlue) -->
         <div class="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
             <div class="w-full md:w-auto flex-grow">
                 <label for="csvFileInput" class="block text-sm font-medium text-gray-700 mb-1">
                     1. Carregue sua lista de escolas (.xlsx ou .xls)
                 </label>
-                <input type="file" id="csvFileInput" accept=".xlsx,.xls" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                <input type="file" id="csvFileInput" accept=".xlsx,.xls" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mainBlue-50 file:text-mainBlue-700 hover:file:bg-mainBlue-100" />
             </div>
             <div class="w-full md:w-auto md:min-w-[200px] text-right">
                 <p id="statusMessage" class="text-sm font-medium text-gray-600">Aguardando arquivo...</p>
             </div>
         </div>
         
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation: Removida a aba de Provedor. A única aba é o Agrupamento. -->
         <div class="flex border-b border-gray-200 mb-6">
-            <button id="tabClusters" onclick="window.setActiveTab('clusters')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 text-white bg-indigo-600 shadow-md">
-                Clusters de Proximidade (5km)
-            </button>
-            <button id="tabProviders" onclick="window.setActiveTab('providers')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 text-gray-700 hover:bg-white">
-                Agrupamento por Provedor
+            <button id="tabGroups" onclick="window.setActiveTab('groups')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 text-white bg-mainBlue-500 shadow-md">
+                Grupos de Proximidade (5km)
             </button>
         </div>
 
-        <!-- Container de Resultados (Clusters ou Provedores) -->
+        <!-- Container de Resultados (Grupos) -->
         <div id="resultsContainer" class="grid grid-cols-1 gap-6">
             <div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
                 Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
@@ -99,7 +116,7 @@
         // Variáveis de ambiente
         const apiKey = "AIzaSyAjjgVH3Jgw8_ZOAtihB699dAlJXu6zSNo";
         const generateContentUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        const MAX_DISTANCE_KM = 5; // Distância máxima para considerar escolas no mesmo cluster (5 km)
+        const MAX_DISTANCE_KM = 5; // Distância máxima para considerar escolas no mesmo Grupo (5 km)
 
         // Referências do DOM
         const csvFileInput = document.getElementById('csvFileInput');
@@ -107,20 +124,18 @@
         const resultsContainer = document.getElementById('resultsContainer');
         const messageContainer = document.getElementById('message-container');
         const messageOverlay = document.getElementById('message-overlay');
-        const tabClusters = document.getElementById('tabClusters');
-        const tabProviders = document.getElementById('tabProviders');
+        const tabGroups = document.getElementById('tabGroups'); // Renomeado
 
         let schoolData = [];
-        let clusterGroups = [];
-        let providerGroups = {};
+        let groupGroups = []; // Renomeado de clusterGroups
+        // providerGroups foi removido
         let actualColumnNames = {};
-        let activeTab = 'clusters';
+        let activeTab = 'groups'; // Aba única
 
         // --- Funções de UI (Caixa de Mensagem) ---
 
         /**
          * Exibe uma caixa de mensagem customizada no centro da tela.
-         * Adicionado customActionHtml para suportar o formulário de associação.
          */
         function showMessageBox(title, content, isLoading = false, customActionHtml = '') {
             messageContainer.innerHTML = '';
@@ -128,7 +143,7 @@
 
             const boxHtml = `
                 <div class="message-box bg-white rounded-xl p-6 w-full max-w-lg">
-                    <h3 class="text-xl font-bold mb-3 text-indigo-700 flex items-center">
+                    <h3 class="text-xl font-bold mb-3 text-mainBlue-700 flex items-center">
                         ${loadingHtml} ${title}
                     </h3>
                     <div class="text-sm text-gray-600 mb-4 max-h-96 overflow-y-auto" id="message-content">
@@ -137,7 +152,7 @@
                     <div id="custom-action-area">
                         ${customActionHtml}
                     </div>
-                    ${isLoading ? '' : '<button onclick="window.closeMessageBox()" class="w-full py-2 px-4 bg-indigo-500 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-600 transition duration-200 mt-2">Fechar</button>'}
+                    ${isLoading ? '' : '<button onclick="window.closeMessageBox()" class="w-full py-2 px-4 bg-mainBlue-500 text-white font-semibold rounded-lg shadow-md hover:bg-mainBlue-600 transition duration-200 mt-2">Fechar</button>'}
                 </div>
             `;
             messageContainer.innerHTML = boxHtml;
@@ -151,28 +166,19 @@
         };
 
         /**
-         * Alterna a aba ativa e renderiza o conteúdo correspondente.
-         * @param {string} tabName 'clusters' ou 'providers'
+         * Atualiza o estilo da aba ativa (agora a única aba).
          */
         window.setActiveTab = (tabName) => {
             activeTab = tabName;
             
-            // Atualiza o estilo das abas
-            tabClusters.classList.remove('bg-indigo-600', 'text-white', 'hover:bg-white', 'text-gray-700');
-            tabProviders.classList.remove('bg-indigo-600', 'text-white', 'hover:bg-white', 'text-gray-700');
-
-            if (tabName === 'clusters') {
-                tabClusters.classList.add('bg-indigo-600', 'text-white', 'shadow-md');
-                tabProviders.classList.add('text-gray-700', 'hover:bg-white');
-            } else {
-                tabProviders.classList.add('bg-indigo-600', 'text-white', 'shadow-md');
-                tabClusters.classList.add('text-gray-700', 'hover:bg-white');
-            }
+            // Define o estilo da aba única (Grupos)
+            tabGroups.classList.remove('text-gray-700', 'hover:bg-white');
+            tabGroups.classList.add('bg-mainBlue-500', 'text-white', 'shadow-md');
 
             renderResults();
         };
 
-        // --- Lógica de Geometria e Clustering ---
+        // --- Lógica de Geometria e Agrupamento ---
 
         /**
          * Calcula a distância Haversine entre dois pontos em km.
@@ -193,16 +199,17 @@
 
         /**
          * Agrupa as escolas por proximidade usando a distância Haversine (DBSCAN simplificado).
+         * Renomeado de clusterSchools para groupSchools.
          */
-        function clusterSchools(schools, maxDistanceKm) {
-            const clusters = [];
+        function groupSchools(schools, maxDistanceKm) {
+            const groups = []; // Renomeado de clusters
             const schoolsCopy = [...schools]; 
 
             while (schoolsCopy.length > 0) {
                 const currentSchool = schoolsCopy.shift(); 
                 
-                const newCluster = {
-                    id: clusters.length + 1,
+                const newGroup = { // Renomeado de newCluster
+                    id: groups.length + 1,
                     municipality: currentSchool.municipality,
                     schools: [currentSchool]
                 };
@@ -217,72 +224,27 @@
                     );
 
                     if (distance <= maxDistanceKm) {
-                        newCluster.schools.push(candidate);
+                        newGroup.schools.push(candidate);
                         schoolsCopy.splice(i, 1); 
                     } else {
                         i++; 
                     }
                 }
-                clusters.push(newCluster);
+                groups.push(newGroup);
             }
 
-            clusters.sort((a, b) => {
+            groups.sort((a, b) => {
                 if (a.municipality < b.municipality) return -1;
                 if (a.municipality > b.municipality) return 1;
                 return b.schools.length - a.schools.length;
             });
 
-            return clusters;
+            return groups;
         }
 
-        /**
-         * Agrupa as escolas com base no nome do provedor listado nos dados.
-         * @returns {object} Um array de grupos ordenados por número de escolas.
-         */
-        function groupSchoolsByProvider(schools) {
-            const groups = {};
-            const unserved = { name: 'Não Atendida / Provedor Não Informado', schools: [] };
-            
-            schools.forEach(school => {
-                const provider = school.providerName ? String(school.providerName).trim() : '';
+        // groupSchoolsByProvider foi removido
 
-                if (provider && provider !== 'N/A' && provider !== '0' && provider !== '-') {
-                    if (!groups[provider]) {
-                        groups[provider] = {
-                            name: provider,
-                            schools: [],
-                            // Usa todos os municípios no grupo (útil para consolidação)
-                            municipalities: new Set() 
-                        };
-                    }
-                    groups[provider].schools.push(school);
-                    groups[provider].municipalities.add(school.municipality);
-                } else {
-                    unserved.schools.push(school);
-                }
-            });
-
-            // Converte o objeto em um array ordenado
-            const sortedGroups = Object.values(groups).map(group => ({
-                ...group,
-                municipalities: Array.from(group.municipalities).sort().join(', ')
-            })).sort((a, b) => {
-                return b.schools.length - a.schools.length; // Maiores primeiro
-            });
-
-            if (unserved.schools.length > 0) {
-                 unserved.schools.sort((a, b) => {
-                    if (a.municipality < b.municipality) return -1;
-                    if (a.municipality > b.municipality) return 1;
-                    return 0;
-                });
-                sortedGroups.push(unserved);
-            }
-
-            return sortedGroups;
-        }
-
-        // --- Lógica de Dados e Visualização de Clusters ---
+        // --- Lógica de Dados e Visualização de Grupos ---
 
         /**
          * Encontra o nome real de uma coluna no objeto de dados, tolerando variações de case e espaço.
@@ -334,58 +296,54 @@
             };
         }
 
-        /**
-         * Renderiza os grupos de provedores (Nova Aba).
-         */
-        function displayProviderGroups(groups) {
-            resultsContainer.innerHTML = ''; 
+        // displayProviderGroups foi removido
 
-            if (groups.length === 0 || (groups.length === 1 && groups[0].name === 'Não Atendida / Provedor Não Informado')) {
-                 resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow">
-                    <p class="font-bold">Nenhuma escola com provedor informado encontrada.</p>
-                    <p>Use o botão 'Pesquisar Provedores' e o formulário 'Associar Provedor' para começar a agrupar!</p>
+        /**
+         * Renderiza os grupos de proximidade (Aba Padrão).
+         * Renomeado de displayClusters para displayGroups.
+         */
+        function displayGroups(groups) {
+            resultsContainer.innerHTML = ''; 
+            
+            if (groups.length === 0) {
+                resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow">
+                    <p class="font-bold">Nenhuma escola válida encontrada.</p>
+                    <p>Verifique se o arquivo possui dados e colunas de Lat/Long válidas.</p>
                 </div>`;
                 return;
             }
 
-            groups.forEach((group, index) => {
-                const isUnserved = group.name === 'Não Atendida / Provedor Não Informado';
-                const totalSchools = group.schools.length;
-                
-                // Ordena escolas dentro do grupo por município
-                const sortedSchools = [...group.schools].sort((a, b) => {
-                    if (a.municipality < b.municipality) return -1;
-                    if (a.municipality > b.municipality) return 1;
-                    return a.name.localeCompare(b.name);
-                });
-
-                const schoolsHtml = sortedSchools.map((school) => `
+            groups.forEach((group, index) => { // Renomeado cluster para group
+                const isSingleSchool = group.schools.length === 1;
+                const schoolsHtml = group.schools.map((school) => `
                     <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row">
                         <div class="flex-grow">
                             <span class="font-semibold text-gray-700">${school.name}</span>
                             <span class="text-xs text-gray-500 block">
-                                ${school.municipality}, INEP: ${school.inep}
+                                ${school.address}, INEP: ${school.inep}
                             </span>
                         </div>
                         <button
-                            onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${school.municipality.replace(/'/g, "\\'")}')"
+                            onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${group.municipality.replace(/'/g, "\\'")}')"
                             class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md"
                         >
-                            Pesquisar Contatos
+                            Pesquisar Provedores
                         </button>
                     </li>
                 `).join('');
 
-                const groupTitle = isUnserved ? `Escolas Não Atendidas (${totalSchools})` : `${group.name} (${totalSchools} Escolas)`;
+                // Renomeado Cluster -> Grupo
+                const groupTitle = isSingleSchool 
+                    ? `Escola Isolada (Grupo ${index + 1})` 
+                    : `Grupo ${index + 1} (${group.schools.length} Escolas)`;
 
+                // Cor atualizada para mainBlue-500/700
                 const groupCard = `
-                    <div class="bg-white rounded-xl shadow-lg border-t-4 ${isUnserved ? 'border-red-500' : 'border-green-500'}">
+                    <div class="bg-white rounded-xl shadow-lg border-t-4 ${isSingleSchool ? 'border-gray-400' : 'border-mainBlue-500'}">
                         <div class="p-5">
-                            <h2 class="text-xl font-bold ${isUnserved ? 'text-red-700' : 'text-green-700'}">${groupTitle}</h2>
-                            ${!isUnserved ? `<p class="text-sm text-gray-600 mb-2">Municípios Atendidos: <span class="font-semibold">${group.municipalities}</span></p>` : ''}
-                            <p class="text-sm text-gray-500 mb-2">
-                                ${isUnserved ? 'Estas escolas precisam de atenção para contratação.' : `Agrupadas para negociação de pacote.`}
-                            </p>
+                            <h2 class="text-xl font-bold ${isSingleSchool ? 'text-gray-700' : 'text-mainBlue-700'}">${groupTitle}</h2>
+                            <p class="text-sm text-gray-500 mb-2">Município: <span class="font-semibold text-gray-700">${group.municipality}</span></p>
+                            ${!isSingleSchool ? `<p class="text-xs text-green-600 font-medium">Estas escolas estão localizadas a menos de ${MAX_DISTANCE_KM} km de distância entre si.</p>` : ''}
                         </div>
                         <ul class="divide-y divide-gray-100">
                             ${schoolsHtml}
@@ -395,87 +353,28 @@
                 resultsContainer.innerHTML += groupCard;
             });
             
-            statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${groups.length} grupos de provedores (incluindo "Não Atendida").`;
+            // Texto de status atualizado
+            statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${groups.length} grupos.`;
         }
 
         /**
-         * Renderiza os clusters de proximidade (Aba Padrão).
-         */
-        function displayClusters(clusters) {
-             resultsContainer.innerHTML = ''; 
-            
-            if (clusters.length === 0) {
-                resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow">
-                    <p class="font-bold">Nenhuma escola válida encontrada.</p>
-                    <p>Verifique se o arquivo possui dados e colunas de Lat/Long válidas.</p>
-                </div>`;
-                return;
-            }
-
-            clusters.forEach((cluster, index) => {
-                const isSingleSchool = cluster.schools.length === 1;
-                const schoolsHtml = cluster.schools.map((school) => `
-                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row">
-                        <div class="flex-grow">
-                            <span class="font-semibold text-gray-700">${school.name}</span>
-                            <span class="text-xs text-gray-500 block">
-                                ${school.address}, INEP: ${school.inep}
-                            </span>
-                        </div>
-                        <button
-                            onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${cluster.municipality.replace(/'/g, "\\'")}')"
-                            class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md"
-                        >
-                            Pesquisar Provedores
-                        </button>
-                    </li>
-                `).join('');
-
-                const clusterTitle = isSingleSchool 
-                    ? `Escola Isolada (Cluster ${index + 1})` 
-                    : `Cluster ${index + 1} (${cluster.schools.length} Escolas)`;
-
-                const clusterCard = `
-                    <div class="bg-white rounded-xl shadow-lg border-t-4 ${isSingleSchool ? 'border-gray-400' : 'border-indigo-500'}">
-                        <div class="p-5">
-                            <h2 class="text-xl font-bold ${isSingleSchool ? 'text-gray-700' : 'text-indigo-700'}">${clusterTitle}</h2>
-                            <p class="text-sm text-gray-500 mb-2">Município: <span class="font-semibold text-gray-700">${cluster.municipality}</span></p>
-                            ${!isSingleSchool ? `<p class="text-xs text-green-600 font-medium">Estas escolas estão localizadas a menos de ${MAX_DISTANCE_KM} km de distância entre si.</p>` : ''}
-                        </div>
-                        <ul class="divide-y divide-gray-100">
-                            ${schoolsHtml}
-                        </ul>
-                    </div>
-                `;
-                resultsContainer.innerHTML += clusterCard;
-            });
-            
-            statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${clusters.length} clusters.`;
-        }
-
-        /**
-         * Função central para renderizar o conteúdo da aba ativa.
+         * Função central para renderizar o conteúdo da aba ativa (agora apenas 'groups').
          */
         function renderResults() {
             if (schoolData.length === 0) {
-                 resultsContainer.innerHTML = `<div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
+                resultsContainer.innerHTML = `<div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
                     Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
                 </div>`;
                 return;
             }
 
-            if (activeTab === 'clusters') {
-                displayClusters(clusterGroups);
-            } else if (activeTab === 'providers') {
-                displayProviderGroups(providerGroups);
-            }
+            displayGroups(groupGroups);
         }
 
         // --- Lógica de Associação e WhatsApp ---
         
         /**
-         * Salva o nome do provedor associado a uma escola e re-renderiza o agrupamento.
-         * Esta é a função que torna o agrupamento por provedor 'dinâmico'.
+         * Salva o nome do provedor associado a uma escola (mantida, mas o agrupamento por provedor não é mais exibido).
          */
         window.associateProvider = (schoolName) => {
             const providerInput = document.getElementById('providerInput');
@@ -486,26 +385,24 @@
                 return;
             }
 
-            // Encontra a escola pelo nome (assumindo que seja único no contexto de um clique)
             const schoolToUpdate = schoolData.find(s => s.name === schoolName);
 
             if (schoolToUpdate) {
                 schoolToUpdate.providerName = provider;
                 
-                // 1. Recalcula os grupos de provedores
-                providerGroups = groupSchoolsByProvider(schoolData);
+                // Recalcula o agrupamento principal
+                groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM);
 
-                // 2. Fecha a caixa de mensagem
                 window.closeMessageBox();
-
-                // 3. Muda para a aba de provedores e renderiza
-                window.setActiveTab('providers');
 
                 // Confirmação com o usuário
                 showMessageBox(
                     "Sucesso na Associação", 
-                    `A escola <strong>${schoolName}</strong> foi associada ao provedor <strong>${provider}</strong>. Verifique o novo agrupamento na aba 'Agrupamento por Provedor'.`
+                    `A escola <strong>${schoolName}</strong> foi associada ao provedor <strong>${provider}</strong>. O dado foi salvo internamente.`
                 );
+                
+                // Re-renderiza a visualização atual
+                renderResults();
             } else {
                 showMessageBox("Erro", "Não foi possível localizar a escola para atualização.");
             }
@@ -515,24 +412,19 @@
          * Formata o conteúdo do texto, identificando números de telefone e adicionando links de WhatsApp.
          */
         function formatContentWithWhatsappLinks(text) {
-            // Regex mais robusta para números brasileiros (DD) XXXXX-XXXX ou (DD) XXXX-XXXX, com ou sem +55.
             const phoneRegex = /(?:\+?\s*(55)\s*)?\(?(\d{2})\)?\s*(\d{4,5}[-.\s]?\d{4})\b/g;
 
             return text.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
-                // Limpa o número para apenas dígitos para o link wa.me
                 let cleanNumber = '';
-                // Prioriza o DDD e o número para garantir que o 55 seja adicionado se faltar
                 cleanNumber += ddd;
                 cleanNumber += numberPart.replace(/\D/g, ''); 
                 
-                // Adiciona o DDI (55) se não começar com 55 (garante a formatação internacional)
                 if (!cleanNumber.startsWith('55')) {
                     cleanNumber = '55' + cleanNumber;
                 }
 
                 const waLink = `https://wa.me/${cleanNumber}`;
                 
-                // Retorna o texto original formatado mais o link.
                 return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[Iniciar Conversa]</a>`;
             });
         }
@@ -627,14 +519,14 @@
                     }
                 }
                 
-                // NOVO: Formulário de Associação
+                // NOVO: Formulário de Associação (Cor atualizada para mainBlue)
                 const actionHtml = `
-                    <div class="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-300">
-                        <label for="providerInput" class="block text-sm font-semibold text-indigo-700 mb-2">
+                    <div class="mt-4 p-3 bg-mainBlue-50 rounded-xl border border-mainBlue-300">
+                        <label for="providerInput" class="block text-sm font-semibold text-mainBlue-700 mb-2">
                             Associar Provedor à Escola <strong>${schoolName}</strong>:
                         </label>
                         <input type="text" id="providerInput" placeholder="Digite o nome do provedor (ex: G Fibra)" 
-                            class="w-full p-2 border border-indigo-300 rounded-lg text-gray-700 mb-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            class="w-full p-2 border border-mainBlue-300 rounded-lg text-gray-700 mb-2 focus:ring-mainBlue-500 focus:border-mainBlue-500">
                         <button 
                             onclick="window.associateProvider('${schoolName.replace(/'/g, "\\'")}')"
                             class="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-200"
@@ -696,8 +588,8 @@
                                 const rawData = results.data;
                                 
                                 if (rawData.length === 0) {
-                                     statusMessage.textContent = 'Erro: O arquivo está vazio ou a primeira aba não contém dados válidos.';
-                                     return;
+                                    statusMessage.textContent = 'Erro: O arquivo está vazio ou a primeira aba não contém dados válidos.';
+                                    return;
                                 }
 
                                 // 4. ENCONTRA OS NOMES REAIS DAS CHAVES (Mais robusto)
@@ -710,7 +602,6 @@
                                 actualColumnNames.ADDRESS = findActualKey("Endereço", sampleSchool) || 'Endereço';
                                 actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || 'INEP';
                                 actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || 'Veloc. (Mbps) Dowload';
-                                // NOVO: Tenta encontrar a coluna de Nome do Provedor
                                 actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || 'Provedor'; 
 
                                 if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
@@ -724,10 +615,10 @@
 
                                 if (schoolData.length > 0) {
                                     // 6. Executa o agrupamento e exibe
-                                    clusterGroups = clusterSchools(schoolData, MAX_DISTANCE_KM);
-                                    providerGroups = groupSchoolsByProvider(schoolData); // Novo agrupamento
+                                    groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM); // Renomeado
+                                    // providerGroups removido
                                     
-                                    setActiveTab(activeTab); // Renderiza a aba ativa
+                                    setActiveTab('groups'); // Renderiza a aba ativa
                                 } else {
                                     statusMessage.textContent = 'Erro: Nenhum dado de escola válido encontrado. Verifique se as colunas de Latitude e Longitude estão preenchidas com números corretos.';
                                 }
@@ -749,7 +640,7 @@
         });
         
         // Inicializa o estado da aba ao carregar
-        window.onload = () => { setActiveTab('clusters'); };
+        window.onload = () => { setActiveTab('groups'); }; // Renomeado
     </script>
 </body>
 </html>
