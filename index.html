@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agrupamento de Escolas por Proximidade</title>
+    <title>Mapeador de Escolas</title>
     
     <!-- Configuração do Tailwind CSS com a nova cor principal -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,6 +21,9 @@
                 700: '#1e3d64',
                 800: '#193352',
               }
+            },
+            boxShadow: { // Adiciona uma sombra mais suave para os cards
+                'subtle': '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03)',
             }
           }
         }
@@ -28,6 +31,7 @@
     </script>
     <style>
         /* Define a fonte Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         html { font-family: 'Inter', sans-serif; }
 
         /* Estilo para a caixa de mensagem/modal (no lugar de alert) */
@@ -64,6 +68,22 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Estilo para esconder o input de arquivo e mostrar apenas o botão customizado */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
     </style>
     <!-- Carregamento das bibliotecas JS necessárias -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -75,62 +95,199 @@
     <div id="message-container"></div>
     <div id="message-overlay" class="hidden message-box-overlay"></div>
 
-    <div class="container mx-auto p-4 md:p-6">
-        <!-- Título e Instruções (Cor atualizada para mainBlue-700) -->
-        <header class="mb-4">
-            <h1 class="text-3xl font-bold text-mainBlue-700 mb-1">Agrupamento de Escolas por Proximidade </h1>
-            <p class="text-sm text-gray-500">
-                Carregue sua lista de escolas para agrupá-las em Grupos de proximidade (raio de 5km) e pesquisar provedores por região.
-            </p>
-        </header>
+    <!-- === INÍCIO: TELA DE LOGIN === -->
+    <div id="login-container" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50 transition-opacity duration-500">
+        <div class="bg-white p-8 md:p-10 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300">
+            <h1 class="text-3xl font-extrabold text-gray-800 text-center mb-2">Mapeador de Escolas</h1>
+            <p class="text-mainBlue-700 font-semibold text-center mb-8">Acesso de Parceiros</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+                    <input type="text" id="username" placeholder="Seu usuário" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <input type="password" id="password" placeholder="********" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150">
+                </div>
+                
+                <p id="login-error-message" class="text-sm text-red-600 font-medium hidden">Usuário ou senha inválidos.</p>
 
-        <!-- Seção de Upload e Status (Cor atualizada para mainBlue) -->
-        <div class="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
-            <div class="w-full md:w-auto flex-grow">
-                <label for="csvFileInput" class="block text-sm font-medium text-gray-700 mb-1">
-                    1. Carregue sua lista de escolas (.xlsx ou .xls)
-                </label>
-                <input type="file" id="csvFileInput" accept=".xlsx,.xls" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mainBlue-50 file:text-mainBlue-700 hover:file:bg-mainBlue-100" />
+                <button id="login-button" class="w-full py-3 px-4 bg-mainBlue-500 text-white font-bold rounded-lg shadow-lg hover:bg-mainBlue-600 transition duration-200">
+                    Entrar
+                </button>
             </div>
-            <div class="w-full md:w-auto md:min-w-[200px] text-right">
-                <p id="statusMessage" class="text-sm font-medium text-gray-600">Aguardando arquivo...</p>
-            </div>
+            
+            <p class="text-xs text-gray-400 text-center mt-6">Versão Beta - Acesso Restrito</p>
         </div>
-        
-        <!-- Tab Navigation: Removida a aba de Provedor. A única aba é o Agrupamento. -->
-        <div class="flex border-b border-gray-200 mb-6">
-            <button id="tabGroups" onclick="window.setActiveTab('groups')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 text-white bg-mainBlue-500 shadow-md">
-                Grupos de Proximidade (5km)
-            </button>
-        </div>
+    </div>
+    <!-- === FIM: TELA DE LOGIN === -->
 
-        <!-- Container de Resultados (Grupos) -->
-        <div id="resultsContainer" class="grid grid-cols-1 gap-6">
-            <div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
-                Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
+    <!-- === INÍCIO: CONTEÚDO PRINCIPAL (OCULTO INICIALMENTE) === -->
+    <div id="app-container" class="hidden">
+        <div class="container mx-auto p-4 md:p-6">
+            
+            <!-- === DASHBOARD HEADER (Mapeador de Escolas + Botão de Upload) === -->
+            <header class="flex justify-between items-start mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800 mb-1">Mapeador de Escolas</h1>
+                    <p class="text-gray-500">
+                        Localize escolas agrupadas e encontre provedores de internet
+                    </p>
+                </div>
+                
+                <!-- Componente de Upload de Arquivo no canto superior direito -->
+                <div class="flex items-center space-x-2 text-sm">
+                    <span id="schoolCountDisplay" class="text-gray-600 font-medium">0 Escolas</span>
+                    <div class="file-input-wrapper">
+                        <!-- Botão customizado de upload -->
+                        <button id="uploadButton" class="flex items-center px-4 py-2 bg-mainBlue-500 text-white font-semibold rounded-lg shadow-md hover:bg-mainBlue-600 transition duration-200 text-sm">
+                            Escolher arquivo <span id="fileIcon" class="ml-2">×</span>
+                        </button>
+                        <!-- Input real de arquivo (escondido) -->
+                        <input type="file" id="csvFileInput" accept=".xlsx,.xls" />
+                    </div>
+                </div>
+            </header>
+            
+            <!-- === CARDS DE MÉTRICAS (Indicadores) === -->
+            <div id="metricsCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                
+                <!-- Card 1: Total de Escolas -->
+                <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
+                    <div class="flex items-center justify-start space-x-3">
+                        <span class="p-2 rounded-full bg-mainBlue-50 text-mainBlue-500">
+                            <!-- Icone de Casa/Escola -->
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+                        </span>
+                        <span id="totalSchools" class="text-3xl font-bold text-mainBlue-700">0</span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-500 mt-2">Total de Escolas</p>
+                </div>
+                
+                <!-- Card 2: Grupos (5km) -->
+                <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
+                    <div class="flex items-center justify-start space-x-3">
+                        <span class="p-2 rounded-full bg-green-50 text-green-600">
+                            <!-- Icone de Grupo/Agrupamento -->
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-4.418 0-8 3.582-8 8s8 12 8 12 8-7.582 8-12-3.582-8-8-8zm0 11c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/></svg>
+                        </span>
+                        <span id="totalGroups" class="text-3xl font-bold text-green-700">0</span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-500 mt-2">Grupos (5km)</p>
+                </div>
+                
+                <!-- Card 3: Municípios Únicos (ÍCONE ATUALIZADO) -->
+                <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
+                    <div class="flex items-center justify-start space-x-3">
+                        <span class="p-2 rounded-full bg-purple-50 text-purple-600">
+                            <!-- Icone de Localização/Cidades (NOVO ÍCONE MAP PINNED) -->
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pinned-icon lucide-map-pinned"><path d="M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 0 1-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0 1 12 0z"/><circle cx="12" cy="8" r="2"/><path d="M8.714 14h-3.71a1 1 0 0 0-.948.683l-2.004 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .948-1.316l-2-6a1 1 0 0 0-.949-.684h-3.712"/></svg>
+                        </span>
+                        <span id="uniqueMunicipalities" class="text-3xl font-bold text-purple-700">0</span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-500 mt-2">Municípios Únicos</p>
+                </div>
+                
+                <!-- Card 4: Mbps Médio (Download) -->
+                <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
+                    <div class="flex items-center justify-start space-x-3">
+                        <span class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                            <!-- Icone de Velocidade/Download -->
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13 14h-2v-4h2v4zm1-8h-4V5h4v1zm-2 15c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/></svg>
+                        </span>
+                        <span id="avgDownloadMbps" class="text-3xl font-bold text-yellow-700">0</span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-500 mt-2">Mbps Médio (Download)</p>
+                </div>
+            </div>
+            <!-- === FIM: CARDS DE MÉTRICAS === -->
+
+            <!-- === INÍCIO: FILTROS DE ESTADO/MUNICÍPIO === -->
+            <div class="bg-white p-5 rounded-xl shadow-subtle mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Filtro de Estado -->
+                <div>
+                    <label for="filterState" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                    <select id="filterState" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150">
+                        <option value="Todos os Estados">Todos os Estados</option>
+                        <!-- Opções serão preenchidas via JS -->
+                    </select>
+                </div>
+                
+                <!-- Filtro de Município -->
+                <div>
+                    <label for="filterMunicipality" class="block text-sm font-medium text-gray-700 mb-1">Município</label>
+                    <select id="filterMunicipality" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150" disabled>
+                        <option value="Todos os Municípios">Todos os Municípios</option>
+                        <!-- Opções serão preenchidas via JS -->
+                    </select>
+                </div>
+            </div>
+            <!-- === FIM: FILTROS DE ESTADO/MUNICÍPIO === -->
+            
+            <!-- Título da seção de resultados -->
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Grupos de Escolas</h2>
+
+            <!-- Container de Resultados (Grupos) -->
+            <div id="resultsContainer" class="grid grid-cols-1 gap-6">
+                <div id="initialPrompt" class="bg-white p-10 rounded-xl shadow-subtle text-center text-gray-500 text-lg">
+                    Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
+                    <p id="statusMessage" class="text-sm font-medium text-gray-400 mt-2">Aguardando arquivo...</p>
+                </div>
             </div>
         </div>
     </div>
+    <!-- === FIM: CONTEÚDO PRINCIPAL === -->
 
+    <!-- === INÍCIO: CÓDIGO JAVASCRIPT === -->
     <script type="module">
         // Variáveis de ambiente
         const apiKey = "AIzaSyAjjgVH3Jgw8_ZOAtihB699dAlJXu6zSNo";
         const generateContentUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         const MAX_DISTANCE_KM = 5; // Distância máxima para considerar escolas no mesmo Grupo (5 km)
 
-        // Referências do DOM
+        // --- HARDCODED USERS FOR AUTHENTICATION ---
+        // NOTE: Use este objeto para adicionar futuros usuários (conforme solicitado).
+        const HARDCODED_USERS = [
+            { username: "Gleyzer.Nojosa", password: "G10Telecom" },
+            { username: "Rodrigo.Rocha", password: "1081" },
+            // Adicionar futuros usuários aqui: { username: "Novo.Usuario", password: "SuaSenha" }
+        ];
+        // -------------------------------------------
+
+        // Referências do DOM (Atualizadas e Novas)
         const csvFileInput = document.getElementById('csvFileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const schoolCountDisplay = document.getElementById('schoolCountDisplay');
+        const totalSchoolsEl = document.getElementById('totalSchools');
+        const totalGroupsEl = document.getElementById('totalGroups');
+        const uniqueMunicipalitiesEl = document.getElementById('uniqueMunicipalities');
+        const avgDownloadMbpsEl = document.getElementById('avgDownloadMbps');
+        const filterStateEl = document.getElementById('filterState');
+        const filterMunicipalityEl = document.getElementById('filterMunicipality');
         const statusMessage = document.getElementById('statusMessage');
+
         const resultsContainer = document.getElementById('resultsContainer');
         const messageContainer = document.getElementById('message-container');
         const messageOverlay = document.getElementById('message-overlay');
-        const tabGroups = document.getElementById('tabGroups'); // Renomeado
+        
+        // NOVAS REFERÊNCIAS DE LOGIN
+        const loginContainer = document.getElementById('login-container');
+        const appContainer = document.getElementById('app-container');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginButton = document.getElementById('login-button');
+        const loginErrorMessage = document.getElementById('login-error-message');
+
 
         let schoolData = [];
-        let groupGroups = []; // Renomeado de clusterGroups
-        // providerGroups foi removido
+        let groupGroups = []; 
         let actualColumnNames = {};
-        let activeTab = 'groups'; // Aba única
+        let activeTab = 'groups'; 
+        let selectedState = 'Todos os Estados';
+        let selectedMunicipality = 'Todos os Municípios';
+
 
         // --- Funções de UI (Caixa de Mensagem) ---
 
@@ -139,12 +296,12 @@
          */
         function showMessageBox(title, content, isLoading = false, customActionHtml = '') {
             messageContainer.innerHTML = '';
-            const loadingHtml = isLoading ? '<span class="loading-spinner"></span>' : '';
+            const loadingHtml = `<span class="loading-spinner"></span>`;
 
             const boxHtml = `
                 <div class="message-box bg-white rounded-xl p-6 w-full max-w-lg">
                     <h3 class="text-xl font-bold mb-3 text-mainBlue-700 flex items-center">
-                        ${loadingHtml} ${title}
+                        ${isLoading ? loadingHtml : ''} ${title}
                     </h3>
                     <div class="text-sm text-gray-600 mb-4 max-h-96 overflow-y-auto" id="message-content">
                         ${content}
@@ -164,21 +321,190 @@
             messageContainer.innerHTML = '';
             messageOverlay.classList.add('hidden');
         };
+        
+        /**
+         * Toggles the visibility of the login screen vs the main application.
+         * @param {boolean} isAuthenticated - true to show app, false to show login.
+         */
+        function toggleAppVisibility(isAuthenticated) {
+            if (isAuthenticated) {
+                // Remove hidden/opacity class on a slight delay for smooth transition
+                loginContainer.classList.add('opacity-0');
+                setTimeout(() => {
+                    loginContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    document.body.classList.remove('overflow-hidden'); // Restore scrolling
+                }, 300); // Duration of opacity transition
+            } else {
+                loginContainer.classList.remove('hidden', 'opacity-0');
+                appContainer.classList.add('hidden');
+                document.body.classList.add('overflow-hidden'); // Prevent scrolling on login screen
+            }
+        }
 
         /**
-         * Atualiza o estilo da aba ativa (agora a única aba).
+         * Validates user credentials against HARDCODED_USERS list.
          */
-        window.setActiveTab = (tabName) => {
-            activeTab = tabName;
+        function authenticateUser(username, password) {
+            const user = HARDCODED_USERS.find(
+                u => u.username === username && u.password === password
+            );
+            return !!user;
+        }
+
+        /**
+         * Handles the login button click event.
+         */
+        function handleLogin() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            loginErrorMessage.classList.add('hidden');
+
+            if (!username || !password) {
+                loginErrorMessage.textContent = 'Por favor, preencha todos os campos.';
+                loginErrorMessage.classList.remove('hidden');
+                return;
+            }
+
+            if (authenticateUser(username, password)) {
+                loginErrorMessage.classList.add('hidden');
+                toggleAppVisibility(true);
+            } else {
+                loginErrorMessage.textContent = 'Usuário ou senha inválidos.';
+                loginErrorMessage.classList.remove('hidden');
+                passwordInput.value = ''; // Clear password field
+            }
+        }
+
+        // --- FUNÇÕES DE DASHBOARD E FILTRAGEM (Mantidas) ---
+
+        /**
+         * Atualiza os cards de métricas.
+         */
+        function updateMetrics(schools, groups) {
+            schoolCountDisplay.textContent = `${schools.length} Escolas`;
+            totalSchoolsEl.textContent = schools.length;
+            totalGroupsEl.textContent = groups.length;
+
+            const municipalities = new Set(schools.map(s => s.municipality));
+            uniqueMunicipalitiesEl.textContent = municipalities.size;
+
+            const validDownloads = schools
+                .map(s => parseFloat(String(s.vel_download).replace(',', '.')))
+                .filter(v => !isNaN(v) && v > 0);
+
+            const avgDownload = validDownloads.length > 0
+                ? (validDownloads.reduce((sum, v) => sum + v, 0) / validDownloads.length).toFixed(1)
+                : '0';
+
+            avgDownloadMbpsEl.textContent = avgDownload;
+        }
+
+        /**
+         * Preenche o filtro de Municípios com base no Estado selecionado.
+         * @param {Array<Object>} schools - Lista de todas as escolas
+         * @param {string} stateFilter - O estado selecionado (ou 'Todos os Estados')
+         */
+        function populateFilters(schools, stateFilter) {
+            // 1. Popular Filtro de Estado
+            if (schools.length > 0) {
+                const states = new Set(schools.map(s => s.state).filter(s => s)); 
+                
+                // Salva o valor atual para restaurar
+                const currentState = filterStateEl.value; 
+                
+                filterStateEl.innerHTML = '<option value="Todos os Estados">Todos os Estados</option>';
+                
+                // Adiciona estados únicos
+                Array.from(states).sort().forEach(state => {
+                    filterStateEl.innerHTML += `<option value="${state}">${state}</option>`;
+                });
+
+                // Restaura o estado selecionado (ou o padrão)
+                filterStateEl.value = currentState;
+                selectedState = currentState; // Atualiza a variável global
+            } else {
+                 filterStateEl.innerHTML = '<option value="Todos os Estados">Todos os Estados</option>';
+                 filterStateEl.value = 'Todos os Estados';
+                 selectedState = 'Todos os Estados';
+            }
+
+            // 2. Filtrar Municípios com base no Estado
+            const municipiosOptions = ['<option value="Todos os Municípios">Todos os Municípios</option>'];
+            let municipiosDisponiveis = schools;
             
-            // Define o estilo da aba única (Grupos)
-            tabGroups.classList.remove('text-gray-700', 'hover:bg-white');
-            tabGroups.classList.add('bg-mainBlue-500', 'text-white', 'shadow-md');
+            if (stateFilter !== 'Todos os Estados' && schools.length > 0) {
+                municipiosDisponiveis = schools.filter(s => s.state === stateFilter);
+            }
 
+            const municipalities = new Set(municipiosDisponiveis.map(s => s.municipality).filter(m => m));
+            
+            if (municipalities.size > 0) {
+                filterMunicipalityEl.removeAttribute('disabled');
+                Array.from(municipalities).sort().forEach(municipality => {
+                    municipiosOptions.push(`<option value="${municipality}">${municipality}</option>`);
+                });
+            } else {
+                filterMunicipalityEl.setAttribute('disabled', 'true');
+            }
+
+            // 3. Popular Filtro de Município
+            filterMunicipalityEl.innerHTML = municipiosOptions.join('');
+            
+            // Restaura o valor de município se ele ainda for válido para o novo estado
+            if (Array.from(municipalities).includes(selectedMunicipality) || selectedMunicipality === 'Todos os Municípios') {
+                filterMunicipalityEl.value = selectedMunicipality;
+            } else {
+                selectedMunicipality = 'Todos os Municípios';
+                filterMunicipalityEl.value = 'Todos os Municípios';
+            }
+        }
+
+        /**
+         * Lógica de Filtragem de Grupos
+         */
+        function getFilteredGroups() {
+            let filteredSchools = schoolData;
+            
+            // 1. Filtragem por Estado
+            if (selectedState !== 'Todos os Estados') {
+                 filteredSchools = filteredSchools.filter(s => s.state === selectedState);
+            }
+
+            // 2. Filtragem por Município
+            if (selectedMunicipality !== 'Todos os Municípios') {
+                filteredSchools = filteredSchools.filter(s => s.municipality === selectedMunicipality);
+            }
+
+            // Recalcula o agrupamento apenas para as escolas filtradas
+            return groupSchools(filteredSchools, MAX_DISTANCE_KM);
+        }
+
+        /**
+         * Renderiza o conteúdo (Grupos de Escolas).
+         */
+        function renderResults() {
+            if (schoolData.length === 0) {
+                updateMetrics([], []);
+                populateFilters([], selectedState);
+                return;
+            }
+
+            const filteredGroups = getFilteredGroups();
+            displayGroups(filteredGroups);
+            updateMetrics(schoolData, groupGroups); 
+        }
+
+        /**
+         * Função para definir a aba ativa.
+         */
+        function setActiveTab(tabName) {
+            activeTab = tabName;
             renderResults();
-        };
+        }
 
-        // --- Lógica de Geometria e Agrupamento ---
+        // --- Lógica de Geometria e Agrupamento (Mantidas) ---
 
         /**
          * Calcula a distância Haversine entre dois pontos em km.
@@ -198,17 +524,16 @@
         }
 
         /**
-         * Agrupa as escolas por proximidade usando a distância Haversine (DBSCAN simplificado).
-         * Renomeado de clusterSchools para groupSchools.
+         * Agrupa as escolas por proximidade (DBSCAN simplificado).
          */
         function groupSchools(schools, maxDistanceKm) {
-            const groups = []; // Renomeado de clusters
+            const groups = []; 
             const schoolsCopy = [...schools]; 
 
             while (schoolsCopy.length > 0) {
                 const currentSchool = schoolsCopy.shift(); 
                 
-                const newGroup = { // Renomeado de newCluster
+                const newGroup = { 
                     id: groups.length + 1,
                     municipality: currentSchool.municipality,
                     schools: [currentSchool]
@@ -218,14 +543,22 @@
                 while (i < schoolsCopy.length) {
                     const candidate = schoolsCopy[i];
                     
-                    const distance = haversineDistance(
-                        currentSchool.lat, currentSchool.lon, 
-                        candidate.lat, candidate.lon
-                    );
+                    let isClose = false;
+                    for (const member of newGroup.schools) {
+                         const distance = haversineDistance(
+                            member.lat, member.lon, 
+                            candidate.lat, candidate.lon
+                         );
+                         if (distance <= maxDistanceKm) {
+                             isClose = true;
+                             break;
+                         }
+                    }
 
-                    if (distance <= maxDistanceKm) {
+                    if (isClose) {
                         newGroup.schools.push(candidate);
                         schoolsCopy.splice(i, 1); 
+                        i = 0; 
                     } else {
                         i++; 
                     }
@@ -242,12 +575,10 @@
             return groups;
         }
 
-        // groupSchoolsByProvider foi removido
-
         // --- Lógica de Dados e Visualização de Grupos ---
 
         /**
-         * Encontra o nome real de uma coluna no objeto de dados, tolerando variações de case e espaço.
+         * Encontra o nome real de uma coluna no objeto de dados.
          */
         function findActualKey(searchKey, school) {
             const keys = Object.keys(school);
@@ -274,6 +605,7 @@
             const municipalityKey = actualColumnNames.MUNICIPALITY;
             const addressKey = actualColumnNames.ADDRESS; 
             const providerKey = actualColumnNames.PROVIDER; 
+            const stateKey = actualColumnNames.STATE;
 
             if (!school[latKey] || !school[lonKey]) return null;
 
@@ -284,9 +616,13 @@
                 return null;
             }
 
+            // O valor de 'state' agora usa a coluna UF (ou similar)
+            const stateValue = school[stateKey] || 'N/A'; 
+
             return {
                 name: school[nameKey] || 'Nome não fornecido',
                 municipality: school[municipalityKey] || 'Município não fornecido',
+                state: stateValue, 
                 lat: lat,
                 lon: lon,
                 address: school[addressKey] || 'Endereço não fornecido',
@@ -296,54 +632,69 @@
             };
         }
 
-        // displayProviderGroups foi removido
-
         /**
-         * Renderiza os grupos de proximidade (Aba Padrão).
-         * Renomeado de displayClusters para displayGroups.
+         * Renderiza os grupos de proximidade.
          */
         function displayGroups(groups) {
             resultsContainer.innerHTML = ''; 
             
-            if (groups.length === 0) {
-                resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow">
-                    <p class="font-bold">Nenhuma escola válida encontrada.</p>
-                    <p>Verifique se o arquivo possui dados e colunas de Lat/Long válidas.</p>
+            if (groups.length === 0 && schoolData.length > 0) {
+                 resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow-subtle">
+                    <p class="font-bold">Nenhum grupo encontrado para a combinação de filtros selecionada.</p>
+                    <p>Tente remover o filtro de Município e/ou Estado.</p>
                 </div>`;
                 return;
+            } else if (schoolData.length === 0) {
+                 return;
             }
 
-            groups.forEach((group, index) => { // Renomeado cluster para group
+            groups.forEach((group, index) => { 
                 const isSingleSchool = group.schools.length === 1;
+                
+                const groupDownloads = group.schools
+                    .map(s => parseFloat(String(s.vel_download).replace(',', '.')))
+                    .filter(v => !isNaN(v) && v > 0);
+
+                const avgGroupDownload = groupDownloads.length > 0
+                    ? (groupDownloads.reduce((sum, v) => sum + v, 0) / groupDownloads.length).toFixed(1)
+                    : 'N/A';
+
                 const schoolsHtml = group.schools.map((school) => `
-                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row">
+                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row hover:bg-mainBlue-50 transition duration-150">
                         <div class="flex-grow">
                             <span class="font-semibold text-gray-700">${school.name}</span>
                             <span class="text-xs text-gray-500 block">
-                                ${school.address}, INEP: ${school.inep}
+                                ${school.address} (${school.state}), INEP: ${school.inep}
+                            </span>
+                            <span class="text-xs text-blue-500 block">
+                                Provedor: ${school.providerName} (Velocidade: ${school.vel_download} Mbps)
                             </span>
                         </div>
                         <button
                             onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${group.municipality.replace(/'/g, "\\'")}')"
-                            class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md"
+                            class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md whitespace-nowrap"
                         >
                             Pesquisar Provedores
                         </button>
                     </li>
                 `).join('');
 
-                // Renomeado Cluster -> Grupo
                 const groupTitle = isSingleSchool 
                     ? `Escola Isolada (Grupo ${index + 1})` 
                     : `Grupo ${index + 1} (${group.schools.length} Escolas)`;
 
-                // Cor atualizada para mainBlue-500/700
                 const groupCard = `
                     <div class="bg-white rounded-xl shadow-lg border-t-4 ${isSingleSchool ? 'border-gray-400' : 'border-mainBlue-500'}">
-                        <div class="p-5">
-                            <h2 class="text-xl font-bold ${isSingleSchool ? 'text-gray-700' : 'text-mainBlue-700'}">${groupTitle}</h2>
-                            <p class="text-sm text-gray-500 mb-2">Município: <span class="font-semibold text-gray-700">${group.municipality}</span></p>
-                            ${!isSingleSchool ? `<p class="text-xs text-green-600 font-medium">Estas escolas estão localizadas a menos de ${MAX_DISTANCE_KM} km de distância entre si.</p>` : ''}
+                        <div class="p-5 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold ${isSingleSchool ? 'text-gray-700' : 'text-mainBlue-700'}">${groupTitle}</h2>
+                                <p class="text-sm text-gray-500">Município: <span class="font-semibold text-gray-700">${group.municipality} (${group.schools[0].state})</span></p>
+                                ${!isSingleSchool ? `<p class="text-xs text-green-600 font-medium">Escolas a até ${MAX_DISTANCE_KM} km de distância.</p>` : ''}
+                            </div>
+                            <div class="text-right">
+                                <span class="block text-2xl font-bold text-yellow-700">${avgGroupDownload}</span>
+                                <span class="text-xs text-gray-500">Mbps Médio</span>
+                            </div>
                         </div>
                         <ul class="divide-y divide-gray-100">
                             ${schoolsHtml}
@@ -353,28 +704,14 @@
                 resultsContainer.innerHTML += groupCard;
             });
             
-            // Texto de status atualizado
-            statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${groups.length} grupos.`;
+            statusMessage.textContent = `${schoolData.length} escolas válidas. Agrupadas em ${groupGroups.length} grupos.`;
+
         }
 
-        /**
-         * Função central para renderizar o conteúdo da aba ativa (agora apenas 'groups').
-         */
-        function renderResults() {
-            if (schoolData.length === 0) {
-                resultsContainer.innerHTML = `<div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
-                    Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
-                </div>`;
-                return;
-            }
-
-            displayGroups(groupGroups);
-        }
-
-        // --- Lógica de Associação e WhatsApp ---
+        // --- Lógica de Associação e WhatsApp (Mantida) ---
         
         /**
-         * Salva o nome do provedor associado a uma escola (mantida, mas o agrupamento por provedor não é mais exibido).
+         * Salva o nome do provedor associado a uma escola.
          */
         window.associateProvider = (schoolName) => {
             const providerInput = document.getElementById('providerInput');
@@ -433,16 +770,16 @@
         // --- Lógica de Pesquisa de Provedores (Gemini API) ---
 
         /**
-         * Função principal para buscar provedores de internet usando a API Gemini (com grounding).
+         * Função principal para buscar provedores de internet usando a API Gemini (simulada).
          */
-        async function handleProviderSearch(schoolName, municipality) {
-            const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}" no Maranhão, Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
+        window.handleProviderSearch = async (schoolName, municipality) => {
+            const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}" no Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
             
             const systemPrompt = "Você é um especialista em conectividade e pesquisa de provedores de internet. Use a pesquisa na web para obter dados atualizados. Apresente os resultados em TEXTO PLANO (sem Markdown ou HTML), listando o NOME do provedor e todos os contatos encontrados (telefone, WhatsApp, Instagram, site) de forma concisa e direta, usando quebras de linha para formatar. O foco é fornecer os contatos.";
 
             showMessageBox(
                 'Pesquisando Provedores de Internet',
-                `<p>Aguarde enquanto pesquisamos provedores para a região de <strong>${municipality}</strong>, Maranhão.</p>`,
+                `<p>Aguarde enquanto pesquisamos provedores para a região de <strong>${municipality}</strong>.</p>`,
                 true // Is Loading
             );
 
@@ -519,7 +856,7 @@
                     }
                 }
                 
-                // NOVO: Formulário de Associação (Cor atualizada para mainBlue)
+                // Formulário de Associação 
                 const actionHtml = `
                     <div class="mt-4 p-3 bg-mainBlue-50 rounded-xl border border-mainBlue-300">
                         <label for="providerInput" class="block text-sm font-semibold text-mainBlue-700 mb-2">
@@ -552,33 +889,62 @@
                     `<p>Não foi possível obter uma resposta detalhada sobre provedores de internet para esta região.</p>`
                 );
             }
-        }
-
-        // Atribui a função globalmente para que o HTML do popup possa chamá-la
-        window.handleProviderSearch = handleProviderSearch;
+        };
 
 
-        // --- Event Listener para Carregamento de Arquivo ---
+        // --- Event Listeners ---
+        
+        // Listener para o login
+        loginButton.addEventListener('click', handleLogin);
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+        
+        // Listener para o filtro de Estado 
+        filterStateEl.addEventListener('change', (event) => {
+            const newState = event.target.value;
+            
+            selectedState = newState;
+            selectedMunicipality = 'Todos os Municípios';
+            
+            populateFilters(schoolData, selectedState);
+            renderResults();
+        });
 
+        // Listener para o filtro de Município
+        filterMunicipalityEl.addEventListener('change', (event) => {
+            selectedMunicipality = event.target.value;
+            renderResults();
+        });
+        
+        // Listener para o botão customizado de upload
+        uploadButton.addEventListener('click', () => {
+            csvFileInput.click();
+        });
+
+        // Listener de mudança de arquivo 
         csvFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 statusMessage.textContent = 'Carregando e processando dados...';
+                schoolCountDisplay.textContent = `Carregando...`;
+                uploadButton.classList.add('bg-gray-400', 'pointer-events-none');
+                uploadButton.classList.remove('bg-mainBlue-500', 'hover:bg-mainBlue-600');
+                uploadButton.innerHTML = `<span class="loading-spinner w-4 h-4 mr-2"></span> Processando...`;
 
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
                     try {
                         const data = new Uint8Array(e.target.result);
-                        // 1. LÊ o arquivo XLSX
                         const workbook = XLSX.read(data, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
                         
-                        // 2. CONVERTE a primeira aba para uma string CSV
                         const csvString = XLSX.utils.sheet_to_csv(worksheet); 
 
-                        // 3. PROCESSA a string CSV usando PapaParse
                         Papa.parse(csvString, {
                             header: true,
                             dynamicTyping: false,
@@ -588,50 +954,56 @@
                                 const rawData = results.data;
                                 
                                 if (rawData.length === 0) {
-                                    statusMessage.textContent = 'Erro: O arquivo está vazio ou a primeira aba não contém dados válidos.';
+                                    statusMessage.textContent = 'Erro: O arquivo está vazio.';
                                     return;
                                 }
 
-                                // 4. ENCONTRA OS NOMES REAIS DAS CHAVES (Mais robusto)
                                 const sampleSchool = rawData[0];
                                 
-                                actualColumnNames.LATITUDE = findActualKey("Lat corrigida", sampleSchool);
-                                actualColumnNames.LONGITUDE = findActualKey("Long corrigida", sampleSchool);
-                                actualColumnNames.NAME = findActualKey("Nome da Escola", sampleSchool);
-                                actualColumnNames.MUNICIPALITY = findActualKey("Município", sampleSchool);
-                                actualColumnNames.ADDRESS = findActualKey("Endereço", sampleSchool) || 'Endereço';
+                                actualColumnNames.LATITUDE = findActualKey("Lat corrigida", sampleSchool) || findActualKey("Latitude", sampleSchool) || findActualKey("Lat", sampleSchool);
+                                actualColumnNames.LONGITUDE = findActualKey("Long corrigida", sampleSchool) || findActualKey("Longitude", sampleSchool) || findActualKey("Long", sampleSchool);
+                                actualColumnNames.NAME = findActualKey("Nome da Escola", sampleSchool) || findActualKey("Escola", sampleSchool) || findActualKey("Nome", sampleSchool);
+                                actualColumnNames.MUNICIPALITY = findActualKey("Município", sampleSchool) || findActualKey("Cidade", sampleSchool);
+                                actualColumnNames.STATE = findActualKey("UF", sampleSchool) || findActualKey("Estado", sampleSchool) || 'Estado'; 
+                                actualColumnNames.ADDRESS = findActualKey("Endereço", sampleSchool) || 'Endereço'; 
                                 actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || 'INEP';
-                                actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || 'Veloc. (Mbps) Dowload';
+                                actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || findActualKey("Velocidade", sampleSchool) || 'Veloc. (Mbps) Dowload';
                                 actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || 'Provedor'; 
 
+
                                 if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
-                                    statusMessage.textContent = `Erro nos cabeçalhos: Não foi possível encontrar as colunas de Latitude e Longitude. Verifique se estão nomeadas como "Lat corrigida" e "Long corrigida" (ou similar) na primeira linha.`;
-                                    console.error("Chaves necessárias não encontradas:", actualColumnNames);
+                                    statusMessage.textContent = `Erro: Colunas de Lat/Long não encontradas.`;
+                                    showMessageBox("Erro de Colunas", `Não foi possível encontrar as colunas de Latitude e Longitude. Verifique se estão nomeadas como "Lat corrigida", "Latitude" ou similar na primeira linha. Colunas encontradas: ${Object.keys(sampleSchool).join(', ')}`);
                                     return;
                                 }
 
-                                // 5. Mapeia e processa os dados brutos
                                 schoolData = rawData.map(processSchool).filter(s => s !== null);
 
                                 if (schoolData.length > 0) {
-                                    // 6. Executa o agrupamento e exibe
-                                    groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM); // Renomeado
-                                    // providerGroups removido
+                                    groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM); 
                                     
-                                    setActiveTab('groups'); // Renderiza a aba ativa
+                                    selectedState = 'Todos os Estados';
+                                    selectedMunicipality = 'Todos os Municípios';
+
+                                    populateFilters(schoolData, selectedState);
+                                    
+                                    setActiveTab('groups');
+                                    statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${groupGroups.length} grupos.`;
+
                                 } else {
-                                    statusMessage.textContent = 'Erro: Nenhum dado de escola válido encontrado. Verifique se as colunas de Latitude e Longitude estão preenchidas com números corretos.';
+                                    statusMessage.innerHTML = '<strong>Erro:</strong> Nenhum dado de escola válido encontrado. Verifique os valores de Lat/Long.';
                                 }
-                            },
-                            error: function(error) {
-                                statusMessage.textContent = `Erro ao processar dados (PapaParse): ${error.message}`;
-                                console.error("Papa Parse Error:", error);
+                                
                             }
                         });
 
                     } catch (error) {
-                        statusMessage.textContent = `Erro ao ler arquivo XLSX: ${error.message}. Certifique-se de que é um arquivo XLSX/XLS válido.`;
+                        statusMessage.textContent = `Erro ao ler arquivo XLSX: ${error.message}`;
                         console.error("XLSX Read Error:", error);
+                    } finally {
+                        uploadButton.classList.remove('bg-gray-400', 'pointer-events-none');
+                        uploadButton.classList.add('bg-mainBlue-500', 'hover:bg-mainBlue-600');
+                        uploadButton.innerHTML = `Escolher arquivo <span class="ml-2">x</span>`;
                     }
                 };
 
@@ -640,9 +1012,16 @@
         });
         
         // Inicializa o estado da aba ao carregar
-        window.onload = () => { setActiveTab('groups'); }; // Renomeado
+        window.onload = () => { 
+            // Inicializa as métricas com zero
+            updateMetrics([], []);
+            // Inicializa os filtros (vazios)
+            populateFilters([], selectedState);
+            // Renderiza o prompt inicial no contentor da App (que está hidden)
+            setActiveTab('groups');
+            // Garante que a tela de login é visível por padrão
+            toggleAppVisibility(false);
+        };
     </script>
 </body>
 </html>
-
-
