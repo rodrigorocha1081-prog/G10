@@ -3,38 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapeador de Escolas</title>
+    <title>Agrupamento de Escolas por Proximidade</title>
     
-    <!-- Configuração do Tailwind CSS com a cor principal customizada -->
+    <!-- Configuração do Tailwind CSS com a nova cor principal -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        // Cor principal do projeto (mantida do código original)
-                        mainBlue: {
-                            50: '#eef2f7',
-                            100: '#dde5ed',
-                            300: '#a3b7d1',
-                            500: '#274e82', // Cor especificada para interações
-                            600: '#234676',
-                            700: '#1e3d64',
-                            800: '#193352',
-                        },
-                        // Cores para os cards de KPI (inspiradas no dashboard do anexo)
-                        indigoAccent: '#4F46E5', // Azul/Roxo suave para Total de Escolas
-                        tealAccent: '#14B8A6', // Verde-água para Grupos/Estados
-                    }
-                }
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              mainBlue: {
+                50: '#eef2f7',
+                100: '#dde5ed',
+                300: '#a3b7d1',
+                500: '#274e82', // A cor especificada
+                600: '#234676',
+                700: '#1e3d64',
+                800: '#193352',
+              }
             }
+          }
         }
+      }
     </script>
     <style>
         /* Define a fonte Inter */
         html { font-family: 'Inter', sans-serif; }
 
-        /* Estilo para a caixa de mensagem/modal */
+        /* Estilo para a caixa de mensagem/modal (no lugar de alert) */
         .message-box {
             position: fixed;
             top: 50%;
@@ -44,7 +40,7 @@
             max-width: 90%;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
         .message-box-overlay {
             position: fixed;
@@ -68,15 +64,10 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-
-        /* Classes de ícones (SVGs) */
-        .icon {
-            width: 28px;
-            height: 28px;
-        }
     </style>
     <!-- Carregamento das bibliotecas JS necessárias -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Biblioteca SheetJS para leitura de arquivos XLSX e XLS -->
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -84,102 +75,38 @@
     <div id="message-container"></div>
     <div id="message-overlay" class="hidden message-box-overlay"></div>
 
-    <div class="container mx-auto p-4 md:p-6 lg:p-10">
-        
-        <!-- HEADER (Cabeçalho principal e seletor de arquivo no estilo dashboard) -->
-        <header class="flex justify-between items-center mb-8 bg-white p-6 rounded-xl shadow-lg border-b border-gray-100">
-            <div>
-                <h1 class="text-3xl font-extrabold text-gray-900">Mapeador de Escolas</h1>
-                <p class="text-sm text-gray-500">Localize escolas agrupadas e encontre provedores de internet</p>
-            </div>
-            
-            <div class="flex items-center space-x-4 text-sm font-medium">
-                <!-- Status do Arquivo (Exibição de Escolas) -->
-                <p id="fileStatusDisplay" class="text-gray-500 font-semibold hidden md:block">
-                    <span id="totalSchoolsDisplay">0</span> Escolas
-                </p>
-
-                <!-- Botão de Escolha de Arquivo -->
-                <input type="file" id="csvFileInput" accept=".xlsx,.xls" class="hidden" />
-                <label for="csvFileInput" id="fileInputLabel" class="cursor-pointer py-2 px-4 border border-gray-300 rounded-lg text-mainBlue-700 bg-gray-50 hover:bg-mainBlue-50 transition duration-150 shadow-sm whitespace-nowrap">
-                    <span id="fileNameDisplay">Escolher arquivo</span>
-                    <span class="ml-2 text-gray-400">×</span>
-                </label>
-            </div>
+    <div class="container mx-auto p-4 md:p-6">
+        <!-- Título e Instruções (Cor atualizada para mainBlue-700) -->
+        <header class="mb-4">
+            <h1 class="text-3xl font-bold text-mainBlue-700 mb-1">Agrupamento de Escolas por Proximidade </h1>
+            <p class="text-sm text-gray-500">
+                Carregue sua lista de escolas para agrupá-las em Grupos de proximidade (raio de 5km) e pesquisar provedores por região.
+            </p>
         </header>
 
-        <!-- KPI CARDS (Métricas principais) -->
-        <div id="kpi-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            
-            <!-- Card 1: Total de Escolas (Ícone atualizado para o School Icon) -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-indigo-100/50">
-                <p class="text-3xl font-bold text-indigoAccent" id="kpiTotalSchools">0</p>
-                <p class="text-sm text-gray-500 mb-4">Total de Escolas</p>
-                <!-- Icone de Escola (SVG Base64 fornecido pelo usuário) -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon text-indigoAccent opacity-50">
-                    <path d="M14 21v-3a2 2 0 0 0-4 0v3"/>
-                    <path d="M18 5v16"/>
-                    <path d="m4 6 7.106-3.79a2 2 0 0 1 1.788 0L20 6"/>
-                    <path d="m6 11-3.52 2.147a1 1 0 0 0-.48.854V19a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a1 1 0 0 0-.48-.853L18 11"/>
-                    <path d="M6 5v16"/>
-                    <circle cx="12" cy="9" r="2"/>
-                </svg>
+        <!-- Seção de Upload e Status (Cor atualizada para mainBlue) -->
+        <div class="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+            <div class="w-full md:w-auto flex-grow">
+                <label for="csvFileInput" class="block text-sm font-medium text-gray-700 mb-1">
+                    1. Carregue sua lista de escolas (.xlsx ou .xls)
+                </label>
+                <input type="file" id="csvFileInput" accept=".xlsx,.xls" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-mainBlue-50 file:text-mainBlue-700 hover:file:bg-mainBlue-100" />
             </div>
-
-            <!-- Card 2: Grupos/Clusters -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-teal-100/50">
-                <p class="text-3xl font-bold text-tealAccent" id="kpiNumGroups">0</p>
-                <p class="text-sm text-gray-500 mb-4">Grupos (5km)</p>
-                <!-- Icone de Agrupamento (PlaceHolder SVG) -->
-                <svg class="icon text-tealAccent opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7v10m0-10H4M4 7v10m0 0l6-6m-6 6l6 6m10-6l-6-6m6 6l-6 6"></path></svg>
-            </div>
-
-            <!-- Card 3: Estados (ou Municípios Únicos, pela simplicidade do dataset) -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-teal-100/50">
-                <p class="text-3xl font-bold text-tealAccent" id="kpiNumStates">0</p>
-                <p class="text-sm text-gray-500 mb-4">Municípios Únicos</p>
-                <!-- Icone de Localização (PlaceHolder SVG) -->
-                <svg class="icon text-tealAccent opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.997 1.997 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            </div>
-
-            <!-- Card 4: Mbps Médio -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <p class="text-3xl font-bold text-gray-700" id="kpiAvgMbps">0</p>
-                <p class="text-sm text-gray-500 mb-4">Mbps Médio (Download)</p>
-                <!-- Icone de Wi-Fi (PlaceHolder SVG) -->
-                <svg class="icon text-gray-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20a8 8 0 01-8-8 8 8 0 018-8 8 8 0 018 8 8 8 0 01-8 8zm0-14v2m0 10v2m6-6h2m-14 0H4"></path></svg>
+            <div class="w-full md:w-auto md:min-w-[200px] text-right">
+                <p id="statusMessage" class="text-sm font-medium text-gray-600">Aguardando arquivo...</p>
             </div>
         </div>
         
-        <!-- FILTROS (Estado e Município) -->
-        <div id="filters" class="bg-white p-6 rounded-xl shadow-lg mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="stateFilter" class="block text-sm font-medium text-gray-700">Estado</label>
-                    <select id="stateFilter" class="mt-1 w-full p-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-mainBlue-500 focus:border-mainBlue-500">
-                        <option value="Todos">Todos os Estados</option>
-                        <!-- Opções populadas dinamicamente via JS -->
-                    </select>
-                </div>
-                <div>
-                    <label for="municipalityFilter" class="block text-sm font-medium text-gray-700">Município</label>
-                    <select id="municipalityFilter" class="mt-1 w-full p-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-mainBlue-500 focus:border-mainBlue-500">
-                        <option value="Todos">Todos os Municípios</option>
-                        <!-- Opções populadas dinamicamente via JS -->
-                    </select>
-                </div>
-            </div>
+        <!-- Tab Navigation: Removida a aba de Provedor. A única aba é o Agrupamento. -->
+        <div class="flex border-b border-gray-200 mb-6">
+            <button id="tabGroups" onclick="window.setActiveTab('groups')" class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors duration-200 text-white bg-mainBlue-500 shadow-md">
+                Grupos de Proximidade (5km)
+            </button>
         </div>
 
-        <!-- Título da Seção de Resultados -->
-        <div class="flex justify-between items-end mb-4">
-            <h2 class="text-xl font-bold text-gray-800">Grupos de Escolas</h2>
-            <p id="groupCountDisplay" class="text-sm text-gray-500">0 grupos encontrados</p>
-        </div>
-
-        <!-- CONTAINER DE RESULTADOS (Agora como grid de cards) -->
-        <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500 md:col-span-full">
+        <!-- Container de Resultados (Grupos) -->
+        <div id="resultsContainer" class="grid grid-cols-1 gap-6">
+            <div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
                 Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
             </div>
         </div>
@@ -193,27 +120,17 @@
 
         // Referências do DOM
         const csvFileInput = document.getElementById('csvFileInput');
-        const fileNameDisplay = document.getElementById('fileNameDisplay');
-        const kpiTotalSchools = document.getElementById('kpiTotalSchools');
-        const kpiNumGroups = document.getElementById('kpiNumGroups');
-        const kpiNumStates = document.getElementById('kpiNumStates');
-        const kpiAvgMbps = document.getElementById('kpiAvgMbps');
-        const groupCountDisplay = document.getElementById('groupCountDisplay');
+        const statusMessage = document.getElementById('statusMessage');
         const resultsContainer = document.getElementById('resultsContainer');
         const messageContainer = document.getElementById('message-container');
         const messageOverlay = document.getElementById('message-overlay');
-        
-        // Referências do DOM para filtros
-        const stateFilter = document.getElementById('stateFilter');
-        const municipalityFilter = document.getElementById('municipalityFilter');
-
+        const tabGroups = document.getElementById('tabGroups'); // Renomeado
 
         let schoolData = [];
-        let groupGroups = [];
+        let groupGroups = []; // Renomeado de clusterGroups
+        // providerGroups foi removido
         let actualColumnNames = {};
-        let filteredGroupsCache = []; // Cache para os grupos filtrados
-        let allSchoolsWithState = []; // Array para escolas com estado (UF) lido do arquivo
-
+        let activeTab = 'groups'; // Aba única
 
         // --- Funções de UI (Caixa de Mensagem) ---
 
@@ -248,7 +165,20 @@
             messageOverlay.classList.add('hidden');
         };
 
-        // --- Lógica de Geometria e Agrupamento (Mantida) ---
+        /**
+         * Atualiza o estilo da aba ativa (agora a única aba).
+         */
+        window.setActiveTab = (tabName) => {
+            activeTab = tabName;
+            
+            // Define o estilo da aba única (Grupos)
+            tabGroups.classList.remove('text-gray-700', 'hover:bg-white');
+            tabGroups.classList.add('bg-mainBlue-500', 'text-white', 'shadow-md');
+
+            renderResults();
+        };
+
+        // --- Lógica de Geometria e Agrupamento ---
 
         /**
          * Calcula a distância Haversine entre dois pontos em km.
@@ -268,21 +198,20 @@
         }
 
         /**
-         * Agrupa as escolas por proximidade usando a distância Haversine.
+         * Agrupa as escolas por proximidade usando a distância Haversine (DBSCAN simplificado).
+         * Renomeado de clusterSchools para groupSchools.
          */
         function groupSchools(schools, maxDistanceKm) {
-            const groups = []; 
+            const groups = []; // Renomeado de clusters
             const schoolsCopy = [...schools]; 
 
             while (schoolsCopy.length > 0) {
                 const currentSchool = schoolsCopy.shift(); 
                 
-                const newGroup = { 
+                const newGroup = { // Renomeado de newCluster
                     id: groups.length + 1,
                     municipality: currentSchool.municipality,
-                    schools: [currentSchool],
-                    // Calcula a média de Mbps para o grupo
-                    avgMbps: currentSchool.vel_download !== 'N/A' ? parseFloat(currentSchool.vel_download) : 0 
+                    schools: [currentSchool]
                 };
 
                 let i = 0;
@@ -301,14 +230,6 @@
                         i++; 
                     }
                 }
-
-                // Recalcula a média de Mbps do grupo
-                const totalMbps = newGroup.schools.reduce((sum, s) => {
-                    const mbps = s.vel_download !== 'N/A' ? parseFloat(s.vel_download) : 0;
-                    return sum + mbps;
-                }, 0);
-                newGroup.avgMbps = newGroup.schools.length > 0 ? (totalMbps / newGroup.schools.length).toFixed(2) : 0;
-                
                 groups.push(newGroup);
             }
 
@@ -321,10 +242,12 @@
             return groups;
         }
 
-        // --- Lógica de Dados e Visualização ---
+        // groupSchoolsByProvider foi removido
+
+        // --- Lógica de Dados e Visualização de Grupos ---
 
         /**
-         * Encontra o nome real de uma coluna.
+         * Encontra o nome real de uma coluna no objeto de dados, tolerando variações de case e espaço.
          */
         function findActualKey(searchKey, school) {
             const keys = Object.keys(school);
@@ -351,9 +274,6 @@
             const municipalityKey = actualColumnNames.MUNICIPALITY;
             const addressKey = actualColumnNames.ADDRESS; 
             const providerKey = actualColumnNames.PROVIDER; 
-            const velDownloadKey = actualColumnNames.VEL_DOWNLOAD;
-            // Chave para Estado/UF
-            const stateKey = actualColumnNames.STATE; 
 
             if (!school[latKey] || !school[lonKey]) return null;
 
@@ -363,269 +283,98 @@
             if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) {
                 return null;
             }
-            
-            // Garantir que o estado seja uma string de 2 letras ou 'NA'
-            let state = (school[stateKey] && String(school[stateKey]).trim().toUpperCase().slice(0, 2)) || 'NA';
-            if (!/^[A-Z]{2}$/.test(state)) {
-                state = 'NA';
-            }
-
 
             return {
                 name: school[nameKey] || 'Nome não fornecido',
                 municipality: school[municipalityKey] || 'Município não fornecido',
-                state: state, // NOVO
                 lat: lat,
                 lon: lon,
                 address: school[addressKey] || 'Endereço não fornecido',
-                inep: school[actualColumnNames.INEP] || 'INEP não fornecido',
+                inep: school['INEP'] || 'INEP não fornecido',
                 providerName: school[providerKey] || 'N/A', 
-                vel_download: school[velDownloadKey] || 'N/A'
+                vel_download: school[actualColumnNames.VEL_DOWNLOAD] || 'N/A'
             };
         }
-        
-        /**
-         * Popula os filtros de Estado e Município com base nos dados carregados.
-         */
-        function populateFilters(schools) {
-            const states = new Set();
-            
-            // Mapeia os dados para allSchoolsWithState, usando a propriedade 'state' já lida pelo processSchool
-            allSchoolsWithState = schools;
 
-            allSchoolsWithState.forEach(school => {
-                states.add(school.state);
-            });
-
-            // Popula o filtro de Estado
-            stateFilter.innerHTML = '';
-            const allStatesOption = document.createElement('option');
-            allStatesOption.value = 'Todos';
-            allStatesOption.textContent = 'Todos os Estados';
-            stateFilter.appendChild(allStatesOption);
-
-            [...states].filter(s => s !== 'NA').sort().forEach(state => {
-                const option = document.createElement('option');
-                option.value = state;
-                option.textContent = state;
-                stateFilter.appendChild(option);
-            });
-            
-            // Força a atualização do filtro de município (encerra o encadeamento aqui)
-            updateMunicipalityFilter(); 
-            
-            // Pré-selecionar o primeiro estado encontrado ou 'Todos'
-            const nonDefaultStates = [...states].filter(s => s !== 'Todos' && s !== 'NA');
-            if (nonDefaultStates.length > 0) {
-                 stateFilter.value = nonDefaultStates[0];
-            } else {
-                 stateFilter.value = 'Todos';
-            }
-        }
-        
-        /**
-         * NOVO: Atualiza o filtro de Município com base no Estado selecionado.
-         */
-        function updateMunicipalityFilter() {
-            const selectedState = stateFilter.value;
-            const municipalities = new Set();
-            
-            // 1. Filtra as escolas para encontrar os municípios do estado selecionado
-            allSchoolsWithState.forEach(school => {
-                if (selectedState === 'Todos' || school.state === selectedState) {
-                    municipalities.add(school.municipality);
-                }
-            });
-            
-            // 2. Popula o filtro de Município
-            municipalityFilter.innerHTML = '';
-            const allMuniOption = document.createElement('option');
-            allMuniOption.value = 'Todos';
-            allMuniOption.textContent = 'Todos os Municípios';
-            municipalityFilter.appendChild(allMuniOption);
-            
-            [...municipalities].filter(m => m !== 'Todos').sort().forEach(municipality => {
-                const option = document.createElement('option');
-                option.value = municipality;
-                option.textContent = municipality;
-                municipalityFilter.appendChild(option);
-            });
-            
-            // Mantém a seleção de município se possível, ou reseta para 'Todos'
-            // Neste caso, vamos resetar para simplificar o fluxo de filtro
-            municipalityFilter.value = 'Todos';
-            
-            // 3. Aplica o filtro completo após a mudança de estado/município
-            filterAndRender();
-        }
-
+        // displayProviderGroups foi removido
 
         /**
-         * Filtra as escolas e grupos e re-renderiza o dashboard.
-         */
-        function filterAndRender() {
-            const selectedState = stateFilter.value;
-            const selectedMunicipality = municipalityFilter.value;
-            
-            // 1. Filtra as escolas originais com base nos filtros
-            let schoolsToGroup = allSchoolsWithState.filter(school => {
-                const stateMatch = selectedState === 'Todos' || school.state === selectedState;
-                const municipalityMatch = selectedMunicipality === 'Todos' || school.municipality === selectedMunicipality;
-                return stateMatch && municipalityMatch;
-            });
-            
-            // 2. Recalcula o agrupamento com base nas escolas filtradas
-            filteredGroupsCache = groupSchools(schoolsToGroup, MAX_DISTANCE_KM);
-
-            // 3. Atualiza os KPIs com os dados filtrados
-            updateKPIs(schoolsToGroup, filteredGroupsCache);
-
-            // 4. Renderiza os resultados
-            displayGroups(filteredGroupsCache);
-        }
-
-        /**
-         * Calcula e exibe as métricas de KPI.
-         */
-        function updateKPIs(schools, groups) {
-            const totalSchools = schools.length;
-            const numGroups = groups.length;
-            
-            // Calcula Municípios Únicos
-            const uniqueMunicipalities = new Set(schools.map(s => s.municipality)).size;
-            
-            // Calcula Mbps Médio
-            const validMbps = schools
-                .map(s => s.vel_download !== 'N/A' ? parseFloat(s.vel_download) : 0)
-                .filter(mbps => mbps > 0);
-                
-            const avgMbps = validMbps.length > 0 
-                ? (validMbps.reduce((sum, m) => sum + m, 0) / validMbps.length).toFixed(0) 
-                : 0;
-
-            // Atualiza o DOM
-            kpiTotalSchools.textContent = totalSchools;
-            kpiNumGroups.textContent = numGroups;
-            kpiNumStates.textContent = uniqueMunicipalities; // Mantido o nome
-            kpiAvgMbps.textContent = avgMbps;
-            groupCountDisplay.textContent = `${numGroups} grupos encontrados`;
-            document.getElementById('totalSchoolsDisplay').textContent = totalSchools;
-        }
-
-        /**
-         * Renderiza os grupos de proximidade como cards.
+         * Renderiza os grupos de proximidade (Aba Padrão).
+         * Renomeado de displayClusters para displayGroups.
          */
         function displayGroups(groups) {
             resultsContainer.innerHTML = ''; 
             
             if (groups.length === 0) {
-                resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow md:col-span-full">
-                    <p class="font-bold">Nenhuma escola válida encontrada com os filtros atuais.</p>
-                    <p>Tente selecionar "Todos os Estados" e "Todos os Municípios".</p>
+                resultsContainer.innerHTML = `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow">
+                    <p class="font-bold">Nenhuma escola válida encontrada.</p>
+                    <p>Verifique se o arquivo possui dados e colunas de Lat/Long válidas.</p>
                 </div>`;
                 return;
             }
 
-            groups.forEach((group) => {
-                const municipality = group.municipality;
+            groups.forEach((group, index) => { // Renomeado cluster para group
+                const isSingleSchool = group.schools.length === 1;
+                const schoolsHtml = group.schools.map((school) => `
+                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row">
+                        <div class="flex-grow">
+                            <span class="font-semibold text-gray-700">${school.name}</span>
+                            <span class="text-xs text-gray-500 block">
+                                ${school.address}, INEP: ${school.inep}
+                            </span>
+                        </div>
+                        <button
+                            onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${group.municipality.replace(/'/g, "\\'")}')"
+                            class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md"
+                        >
+                            Pesquisar Provedores
+                        </button>
+                    </li>
+                `).join('');
 
-                const actionButton = `<button
-                    onclick="window.openGroupDetails(${group.id}, '${municipality.replace(/'/g, "\\'")}', ${group.avgMbps}, ${group.schools.length})"
-                    class="w-full py-2 text-mainBlue-500 font-semibold rounded-lg hover:bg-mainBlue-50 transition duration-200 mt-4 text-sm border border-mainBlue-500/50"
-                >
-                    Clique para ver detalhes e buscar provedores
-                </button>`;
+                // Renomeado Cluster -> Grupo
+                const groupTitle = isSingleSchool 
+                    ? `Escola Isolada (Grupo ${index + 1})` 
+                    : `Grupo ${index + 1} (${group.schools.length} Escolas)`;
 
-                // Cartão de Resultado (Cluster Card)
+                // Cor atualizada para mainBlue-500/700
                 const groupCard = `
-                    <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-5 hover:shadow-xl transition-shadow duration-300">
-                        <!-- Topo do Card -->
-                        <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-xl font-bold text-gray-800">${group.schools.length} Escolas Próximas</h3>
-                            <span class="px-3 py-1 bg-teal-100 text-tealAccent text-xs font-semibold rounded-full">${group.schools.length}</span>
+                    <div class="bg-white rounded-xl shadow-lg border-t-4 ${isSingleSchool ? 'border-gray-400' : 'border-mainBlue-500'}">
+                        <div class="p-5">
+                            <h2 class="text-xl font-bold ${isSingleSchool ? 'text-gray-700' : 'text-mainBlue-700'}">${groupTitle}</h2>
+                            <p class="text-sm text-gray-500 mb-2">Município: <span class="font-semibold text-gray-700">${group.municipality}</span></p>
+                            ${!isSingleSchool ? `<p class="text-xs text-green-600 font-medium">Estas escolas estão localizadas a menos de ${MAX_DISTANCE_KM} km de distância entre si.</p>` : ''}
                         </div>
-                        
-                        <!-- Localização -->
-                        <div class="flex items-center text-sm text-gray-600 mb-4">
-                            <!-- Icone de Ponto (Placeholder) -->
-                            <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.997 1.997 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            <span>${municipality}</span>
-                        </div>
-
-                        <!-- Métricas -->
-                        <div class="flex justify-between items-center text-sm mb-4 border-t border-b border-gray-100 py-3">
-                            <div class="flex items-center">
-                                <!-- Icone de Média (Placeholder) -->
-                                <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m0 0l-4-4m4 4l4-4M16 16h-4m-4 0H4"></path></svg>
-                                <span>Média: <strong class="text-gray-900">${group.avgMbps}</strong> Mbps</span>
-                            </div>
-                            <div class="flex items-center">
-                                <!-- Icone de Raio (Placeholder) -->
-                                <svg class="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                <span class="text-red-600 font-semibold">Raio: ${MAX_DISTANCE_KM}km</span>
-                            </div>
-                        </div>
-
-                        ${actionButton}
+                        <ul class="divide-y divide-gray-100">
+                            ${schoolsHtml}
+                        </ul>
                     </div>
                 `;
                 resultsContainer.innerHTML += groupCard;
             });
+            
+            // Texto de status atualizado
+            statusMessage.textContent = `${schoolData.length} escolas processadas, resultando em ${groups.length} grupos.`;
         }
 
-        // Função para abrir o modal de detalhes do grupo (novo)
-        window.openGroupDetails = (groupId, municipality, avgMbps, schoolCount) => {
-            // Busca o grupo no cache filtrado (garante que os detalhes correspondem ao que está sendo visto)
-            const group = filteredGroupsCache.find(g => g.id === groupId); 
-            if (!group) return;
+        /**
+         * Função central para renderizar o conteúdo da aba ativa (agora apenas 'groups').
+         */
+        function renderResults() {
+            if (schoolData.length === 0) {
+                resultsContainer.innerHTML = `<div id="initialPrompt" class="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
+                    Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
+                </div>`;
+                return;
+            }
 
-            const schoolListHtml = group.schools.map(school => {
-                // Encontra a escola original no dataset completo para garantir que o município de pesquisa seja o correto
-                const originalSchool = allSchoolsWithState.find(s => s.name === school.name);
-                const searchMunicipality = originalSchool ? originalSchool.municipality : municipality;
+            displayGroups(groupGroups);
+        }
 
-                return `
-                <li class="p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                    <div>
-                        <p class="font-semibold text-gray-800">${school.name} <span class="text-xs font-normal text-gray-500"> (INEP: ${school.inep})</span></p>
-                        <p class="text-xs text-gray-600">Provedor: ${school.providerName}</p>
-                    </div>
-                    <button
-                        onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${searchMunicipality.replace(/'/g, "\\'")}')"
-                        class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md whitespace-nowrap"
-                    >
-                        Pesquisar Provedores
-                    </button>
-                </li>
-            `}).join('');
-
-
-            const content = `
-                <div class="space-y-4">
-                    <div class="bg-mainBlue-50 p-4 rounded-lg">
-                        <p class="text-xs text-mainBlue-700 font-semibold">Resumo do Grupo:</p>
-                        <p class="text-sm">Município: <strong>${municipality}</strong></p>
-                        <p class="text-sm">Escolas: <strong>${schoolCount}</strong></p>
-                        <p class="text-sm">Média de Mbps: <strong>${avgMbps}</strong></p>
-                    </div>
-                    <p class="font-bold text-gray-700">Ações:</p>
-                    <ul class="space-y-2">
-                        ${schoolListHtml}
-                    </ul>
-                </div>
-            `;
-
-            showMessageBox(
-                `Detalhes do Grupo de Proximidade ${groupId}`,
-                content
-            );
-        };
-
-
-        // --- Lógica de Associação e WhatsApp (Mantida) ---
+        // --- Lógica de Associação e WhatsApp ---
         
         /**
-         * Salva o nome do provedor associado a uma escola.
+         * Salva o nome do provedor associado a uma escola (mantida, mas o agrupamento por provedor não é mais exibido).
          */
         window.associateProvider = (schoolName) => {
             const providerInput = document.getElementById('providerInput');
@@ -636,7 +385,6 @@
                 return;
             }
 
-            // Atualiza o dado na fonte original
             const schoolToUpdate = schoolData.find(s => s.name === schoolName);
 
             if (schoolToUpdate) {
@@ -644,16 +392,17 @@
                 
                 // Recalcula o agrupamento principal
                 groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM);
-                
+
                 window.closeMessageBox();
 
+                // Confirmação com o usuário
                 showMessageBox(
                     "Sucesso na Associação", 
-                    `A escola <strong>${schoolName}</strong> foi associada ao provedor <strong>${provider}</strong>. O dashboard será atualizado.`
+                    `A escola <strong>${schoolName}</strong> foi associada ao provedor <strong>${provider}</strong>. O dado foi salvo internamente.`
                 );
                 
-                // Re-renderiza a visualização filtrada atual
-                filterAndRender();
+                // Re-renderiza a visualização atual
+                renderResults();
             } else {
                 showMessageBox("Erro", "Não foi possível localizar a escola para atualização.");
             }
@@ -665,10 +414,7 @@
         function formatContentWithWhatsappLinks(text) {
             const phoneRegex = /(?:\+?\s*(55)\s*)?\(?(\d{2})\)?\s*(\d{4,5}[-.\s]?\d{4})\b/g;
 
-            // Substitui quebras de linha por <br> e depois procura por telefones
-            const htmlText = text.replace(/\n/g, '<br>');
-
-            return htmlText.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
+            return text.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
                 let cleanNumber = '';
                 cleanNumber += ddd;
                 cleanNumber += numberPart.replace(/\D/g, ''); 
@@ -679,25 +425,24 @@
 
                 const waLink = `https://wa.me/${cleanNumber}`;
                 
-                return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[WhatsApp]</a>`;
+                return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[Iniciar Conversa]</a>`;
             });
         }
 
 
-        // --- Lógica de Pesquisa de Provedores (Gemini API) (Mantida) ---
+        // --- Lógica de Pesquisa de Provedores (Gemini API) ---
 
         /**
          * Função principal para buscar provedores de internet usando a API Gemini (com grounding).
          */
         async function handleProviderSearch(schoolName, municipality) {
-            // A query do Gemini ainda foca no Maranhão como default, pode ser ajustada se houver mais estados na base
-            const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}", Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
+            const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}" no Maranhão, Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
             
             const systemPrompt = "Você é um especialista em conectividade e pesquisa de provedores de internet. Use a pesquisa na web para obter dados atualizados. Apresente os resultados em TEXTO PLANO (sem Markdown ou HTML), listando o NOME do provedor e todos os contatos encontrados (telefone, WhatsApp, Instagram, site) de forma concisa e direta, usando quebras de linha para formatar. O foco é fornecer os contatos.";
 
             showMessageBox(
                 'Pesquisando Provedores de Internet',
-                `<p>Aguarde enquanto pesquisamos provedores para a região de <strong>${municipality}</strong>.</p>`,
+                `<p>Aguarde enquanto pesquisamos provedores para a região de <strong>${municipality}</strong>, Maranhão.</p>`,
                 true // Is Loading
             );
 
@@ -774,7 +519,7 @@
                     }
                 }
                 
-                // Formulário de Associação
+                // NOVO: Formulário de Associação (Cor atualizada para mainBlue)
                 const actionHtml = `
                     <div class="mt-4 p-3 bg-mainBlue-50 rounded-xl border border-mainBlue-300">
                         <label for="providerInput" class="block text-sm font-semibold text-mainBlue-700 mb-2">
@@ -795,7 +540,7 @@
                 showMessageBox(
                     `Provedores para ${municipality}`,
                     `<p class="font-medium text-gray-800 mb-3">Resultado da pesquisa online para a escola <strong>${schoolName}</strong> (Município: ${municipality}):</p>
-                    <div class="p-3 bg-gray-50 rounded-lg whitespace-pre-wrap text-left">${formattedContent}</div>
+                    <div class="p-3 bg-gray-50 rounded-lg whitespace-pre-wrap">${formattedContent}</div>
                     ${sourcesHtml}`,
                     false, // Not Loading
                     actionHtml // Custom Action HTML
@@ -809,17 +554,17 @@
             }
         }
 
-        // Atribui as funções globalmente para que o HTML do popup possa chamá-las
+        // Atribui a função globalmente para que o HTML do popup possa chamá-la
         window.handleProviderSearch = handleProviderSearch;
-        window.renderResults = filterAndRender; // Função wrapper
-        
-        // --- Event Listener para Carregamento de Arquivo (Atualizado) ---
+
+
+        // --- Event Listener para Carregamento de Arquivo ---
 
         csvFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
-                fileNameDisplay.textContent = 'Processando...';
-                
+                statusMessage.textContent = 'Carregando e processando dados...';
+
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
@@ -843,7 +588,7 @@
                                 const rawData = results.data;
                                 
                                 if (rawData.length === 0) {
-                                    fileNameDisplay.textContent = 'Erro: Arquivo vazio.';
+                                    statusMessage.textContent = 'Erro: O arquivo está vazio ou a primeira aba não contém dados válidos.';
                                     return;
                                 }
 
@@ -854,47 +599,38 @@
                                 actualColumnNames.LONGITUDE = findActualKey("Long corrigida", sampleSchool);
                                 actualColumnNames.NAME = findActualKey("Nome da Escola", sampleSchool);
                                 actualColumnNames.MUNICIPALITY = findActualKey("Município", sampleSchool);
-                                actualColumnNames.STATE = findActualKey("UF", sampleSchool) || findActualKey("Estado", sampleSchool) || 'UF'; // Procura por UF ou Estado
                                 actualColumnNames.ADDRESS = findActualKey("Endereço", sampleSchool) || 'Endereço';
                                 actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || 'INEP';
                                 actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || 'Veloc. (Mbps) Dowload';
                                 actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || 'Provedor'; 
 
                                 if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
-                                    fileNameDisplay.textContent = `Erro: Colunas Lat/Long não encontradas.`;
-                                    showMessageBox("Erro de Colunas", "Não foi possível encontrar as colunas de Latitude e Longitude (esperado: 'Lat corrigida' e 'Long corrigida' ou similar) na primeira linha.");
+                                    statusMessage.textContent = `Erro nos cabeçalhos: Não foi possível encontrar as colunas de Latitude e Longitude. Verifique se estão nomeadas como "Lat corrigida" e "Long corrigida" (ou similar) na primeira linha.`;
+                                    console.error("Chaves necessárias não encontradas:", actualColumnNames);
                                     return;
                                 }
-                                
-                                if (!actualColumnNames.STATE) { // Verifica se a coluna UF/Estado foi encontrada
-                                     showMessageBox("Aviso", "A coluna de UF/Estado não foi identificada. O filtro de estado pode não funcionar corretamente. Verifique se o cabeçalho é 'UF' ou 'Estado'.");
-                                }
-
 
                                 // 5. Mapeia e processa os dados brutos
                                 schoolData = rawData.map(processSchool).filter(s => s !== null);
 
                                 if (schoolData.length > 0) {
-                                    // 6. Executa o agrupamento inicial
-                                    groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM);
+                                    // 6. Executa o agrupamento e exibe
+                                    groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM); // Renomeado
+                                    // providerGroups removido
                                     
-                                    // Popula os filtros e re-renderiza
-                                    populateFilters(schoolData); 
-                                    fileNameDisplay.textContent = file.name;
-                                    filterAndRender(); // Filtra (inicialmente, todos) e exibe os resultados
+                                    setActiveTab('groups'); // Renderiza a aba ativa
                                 } else {
-                                    fileNameDisplay.textContent = 'Erro: Sem dados válidos.';
-                                    showMessageBox("Erro de Dados", "Nenhum dado de escola válido encontrado. Verifique se as colunas de Latitude e Longitude estão preenchidas com números corretos.");
+                                    statusMessage.textContent = 'Erro: Nenhum dado de escola válido encontrado. Verifique se as colunas de Latitude e Longitude estão preenchidas com números corretos.';
                                 }
                             },
                             error: function(error) {
-                                fileNameDisplay.textContent = `Erro: ${error.message}`;
+                                statusMessage.textContent = `Erro ao processar dados (PapaParse): ${error.message}`;
                                 console.error("Papa Parse Error:", error);
                             }
                         });
 
                     } catch (error) {
-                        fileNameDisplay.textContent = `Erro ao ler XLSX: ${error.message}`;
+                        statusMessage.textContent = `Erro ao ler arquivo XLSX: ${error.message}. Certifique-se de que é um arquivo XLSX/XLS válido.`;
                         console.error("XLSX Read Error:", error);
                     }
                 };
@@ -903,14 +639,10 @@
             }
         });
         
-        // --- Event Listeners para Filtros (Atualizado para filtro encadeado) ---
-        // Quando o estado muda, atualiza os municípios antes de renderizar
-        stateFilter.addEventListener('change', updateMunicipalityFilter); 
-        // Quando o município muda, apenas renderiza com o novo filtro
-        municipalityFilter.addEventListener('change', filterAndRender);
-        
-        // Inicializa o estado dos KPIs
-        window.onload = () => { updateKPIs([], []); };
+        // Inicializa o estado da aba ao carregar
+        window.onload = () => { setActiveTab('groups'); }; // Renomeado
     </script>
 </body>
 </html>
+
+
