@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapeador de Escolas</title>
     
-    <!-- Configuração do Tailwind CSS com a nova cor principal -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -84,10 +83,14 @@
             width: 100%;
             height: 100%;
         }
+        
+        /* Estilo para exibir a API Key como asteriscos */
+        .api-key-display {
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
     </style>
-    <!-- Carregamento das bibliotecas JS necessárias -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Biblioteca SheetJS para leitura de arquivos XLSX e XLS -->
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -95,7 +98,6 @@
     <div id="message-container"></div>
     <div id="message-overlay" class="hidden message-box-overlay"></div>
 
-    <!-- === INÍCIO: TELA DE LOGIN === -->
     <div id="login-container" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50 transition-opacity duration-500">
         <div class="bg-white p-8 md:p-10 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300">
             <h1 class="text-3xl font-extrabold text-gray-800 text-center mb-2">Mapeador de Escolas</h1>
@@ -121,13 +123,9 @@
             <p class="text-xs text-gray-400 text-center mt-6">Versão Beta - Acesso Restrito</p>
         </div>
     </div>
-    <!-- === FIM: TELA DE LOGIN === -->
-
-    <!-- === INÍCIO: CONTEÚDO PRINCIPAL (OCULTO INICIALMENTE) === -->
     <div id="app-container" class="hidden">
         <div class="container mx-auto p-4 md:p-6">
             
-            <!-- === DASHBOARD HEADER (Mapeador de Escolas + Botão de Upload) === -->
             <header class="flex justify-between items-start mb-6">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-800 mb-1">Mapeador de Escolas</h1>
@@ -136,28 +134,40 @@
                     </p>
                 </div>
                 
-                <!-- Componente de Upload de Arquivo no canto superior direito -->
                 <div class="flex items-center space-x-2 text-sm">
                     <span id="schoolCountDisplay" class="text-gray-600 font-medium">0 Escolas</span>
                     <div class="file-input-wrapper">
-                        <!-- Botão customizado de upload -->
                         <button id="uploadButton" class="flex items-center px-4 py-2 bg-mainBlue-500 text-white font-semibold rounded-lg shadow-md hover:bg-mainBlue-600 transition duration-200 text-sm">
                             Escolher arquivo <span id="fileIcon" class="ml-2">×</span>
                         </button>
-                        <!-- Input real de arquivo (escondido) -->
                         <input type="file" id="csvFileInput" accept=".xlsx,.xls" />
                     </div>
                 </div>
             </header>
             
-            <!-- === CARDS DE MÉTRICAS (Indicadores) === -->
+            <div class="bg-white p-5 rounded-xl shadow-subtle mb-6 border border-yellow-200">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                    <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-2 md:mb-0">
+                        Chave da API Gemini (para Pesquisa de Provedores):
+                    </label>
+                    <div class="flex w-full md:w-auto md:min-w-[300px]">
+                        <input type="text" id="apiKeyInput" placeholder="Cole sua chave aqui..." 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150 text-sm"
+                            autocomplete="off">
+                        <button id="saveApiKeyButton" class="px-3 py-2 bg-green-500 text-white font-semibold rounded-r-lg hover:bg-green-600 transition duration-150 text-sm whitespace-nowrap">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+                <p id="apiKeyDisplay" class="text-xs text-gray-500 mt-2">
+                    Status: <span class="font-semibold text-red-500">Nenhuma chave salva. A pesquisa online está desativada.</span>
+                </p>
+            </div>
             <div id="metricsCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 
-                <!-- Card 1: Total de Escolas -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-mainBlue-50 text-mainBlue-500">
-                            <!-- Icone de Casa/Escola -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
                         </span>
                         <span id="totalSchools" class="text-3xl font-bold text-mainBlue-700">0</span>
@@ -165,11 +175,9 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Total de Escolas</p>
                 </div>
                 
-                <!-- Card 2: Grupos (5km) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-green-50 text-green-600">
-                            <!-- Icone de Grupo/Agrupamento -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-4.418 0-8 3.582-8 8s8 12 8 12 8-7.582 8-12-3.582-8-8-8zm0 11c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/></svg>
                         </span>
                         <span id="totalGroups" class="text-3xl font-bold text-green-700">0</span>
@@ -177,11 +185,9 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Grupos (5km)</p>
                 </div>
                 
-                <!-- Card 3: Municípios Únicos (ÍCONE ATUALIZADO) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-purple-50 text-purple-600">
-                            <!-- Icone de Localização/Cidades (NOVO ÍCONE MAP PINNED) -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pinned-icon lucide-map-pinned"><path d="M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 0 1-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0 1 12 0z"/><circle cx="12" cy="8" r="2"/><path d="M8.714 14h-3.71a1 1 0 0 0-.948.683l-2.004 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .948-1.316l-2-6a1 1 0 0 0-.949-.684h-3.712"/></svg>
                         </span>
                         <span id="uniqueMunicipalities" class="text-3xl font-bold text-purple-700">0</span>
@@ -189,11 +195,9 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Municípios Únicos</p>
                 </div>
                 
-                <!-- Card 4: Mbps Médio (Download) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-yellow-50 text-yellow-600">
-                            <!-- Icone de Velocidade/Download -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13 14h-2v-4h2v4zm1-8h-4V5h4v1zm-2 15c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/></svg>
                         </span>
                         <span id="avgDownloadMbps" class="text-3xl font-bold text-yellow-700">0</span>
@@ -201,35 +205,24 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Mbps Médio (Download)</p>
                 </div>
             </div>
-            <!-- === FIM: CARDS DE MÉTRICAS === -->
-
-            <!-- === INÍCIO: FILTROS DE ESTADO/MUNICÍPIO === -->
             <div class="bg-white p-5 rounded-xl shadow-subtle mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 
-                <!-- Filtro de Estado -->
                 <div>
                     <label for="filterState" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
                     <select id="filterState" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150">
                         <option value="Todos os Estados">Todos os Estados</option>
-                        <!-- Opções serão preenchidas via JS -->
-                    </select>
+                        </select>
                 </div>
                 
-                <!-- Filtro de Município -->
                 <div>
                     <label for="filterMunicipality" class="block text-sm font-medium text-gray-700 mb-1">Município</label>
                     <select id="filterMunicipality" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150" disabled>
                         <option value="Todos os Municípios">Todos os Municípios</option>
-                        <!-- Opções serão preenchidas via JS -->
-                    </select>
+                        </select>
                 </div>
             </div>
-            <!-- === FIM: FILTROS DE ESTADO/MUNICÍPIO === -->
-            
-            <!-- Título da seção de resultados -->
             <h2 class="text-xl font-bold text-gray-800 mb-4">Grupos de Escolas</h2>
 
-            <!-- Container de Resultados (Grupos) -->
             <div id="resultsContainer" class="grid grid-cols-1 gap-6">
                 <div id="initialPrompt" class="bg-white p-10 rounded-xl shadow-subtle text-center text-gray-500 text-lg">
                     Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
@@ -238,19 +231,17 @@
             </div>
         </div>
     </div>
-    <!-- === FIM: CONTEÚDO PRINCIPAL === -->
-
-    <!-- === INÍCIO: CÓDIGO JAVASCRIPT === -->
     <script type="module">
         // Variáveis de ambiente
-        const apiKey = "AIzaSyAjjgVH3Jgw8_ZOAtihB699dAlJXu6zSNo";
-        const generateContentUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        // A chave da API foi removida daqui e será definida pelo usuário.
+        let apiKey = ""; 
+        const generateContentBaseUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=`;
         const MAX_DISTANCE_KM = 5; // Distância máxima para considerar escolas no mesmo Grupo (5 km)
 
         // --- HARDCODED USERS FOR AUTHENTICATION ---
         // NOTE: Use este objeto para adicionar futuros usuários (conforme solicitado).
         const HARDCODED_USERS = [
-            { username: "Gleyzer.Nojosa", password: "G10Telecom" },
+            { username: "Gleizer.Nojosa", password: "G10Telecom" },
             { username: "Rodrigo.Rocha", password: "1081" },
             // Adicionar futuros usuários aqui: { username: "Novo.Usuario", password: "SuaSenha" }
         ];
@@ -272,13 +263,17 @@
         const messageContainer = document.getElementById('message-container');
         const messageOverlay = document.getElementById('message-overlay');
         
-        // NOVAS REFERÊNCIAS DE LOGIN
+        // NOVAS REFERÊNCIAS DE LOGIN E API
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         const loginButton = document.getElementById('login-button');
         const loginErrorMessage = document.getElementById('login-error-message');
+        
+        const apiKeyInput = document.getElementById('apiKeyInput'); // Novo input
+        const saveApiKeyButton = document.getElementById('saveApiKeyButton'); // Novo botão
+        const apiKeyDisplay = document.getElementById('apiKeyDisplay'); // Novo display de status
 
 
         let schoolData = [];
@@ -374,6 +369,59 @@
                 loginErrorMessage.textContent = 'Usuário ou senha inválidos.';
                 loginErrorMessage.classList.remove('hidden');
                 passwordInput.value = ''; // Clear password field
+            }
+        }
+
+        // --- LÓGICA DA API KEY (NOVO) ---
+        
+        /**
+         * Atualiza a variável global da API key e o display de status.
+         */
+        function updateApiKey(key) {
+            apiKey = key;
+            localStorage.setItem('geminiApiKey', key); 
+            updateApiKeyDisplay();
+        }
+
+        /**
+         * Atualiza o campo de input e o texto de status da API Key.
+         */
+        function updateApiKeyDisplay() {
+            const storedKey = localStorage.getItem('geminiApiKey');
+            
+            if (storedKey) {
+                apiKey = storedKey; // Garante que a variável global está atualizada
+                
+                // Exibe asteriscos
+                const maskedKey = '********************' + storedKey.substring(storedKey.length - 4);
+                
+                apiKeyInput.value = storedKey;
+                apiKeyInput.type = 'password'; 
+                apiKeyInput.placeholder = 'Chave salva (ocultada)';
+                
+                apiKeyDisplay.innerHTML = `Status: <span class="font-semibold text-green-600">Chave salva com sucesso.</span> Chave: <span class="api-key-display">${maskedKey}</span>`;
+            } else {
+                apiKey = ""; 
+                apiKeyInput.value = "";
+                apiKeyInput.type = 'text'; 
+                apiKeyInput.placeholder = 'Cole sua chave aqui...';
+                apiKeyDisplay.innerHTML = `Status: <span class="font-semibold text-red-500">Nenhuma chave salva. A pesquisa online está desativada.</span>`;
+            }
+        }
+        
+        /**
+         * Manipulador para salvar a API Key.
+         */
+        function handleSaveApiKey() {
+            const key = apiKeyInput.value.trim();
+            
+            if (key) {
+                updateApiKey(key);
+                showMessageBox("Sucesso", "Chave da API Gemini salva com sucesso.");
+            } else {
+                localStorage.removeItem('geminiApiKey');
+                updateApiKey("");
+                showMessageBox("Aviso", "Chave da API Gemini removida. A pesquisa online será desativada.");
             }
         }
 
@@ -773,6 +821,17 @@
          * Função principal para buscar provedores de internet usando a API Gemini (simulada).
          */
         window.handleProviderSearch = async (schoolName, municipality) => {
+            if (!apiKey) {
+                 showMessageBox(
+                    'Pesquisa Desativada',
+                    '<p>A funcionalidade de pesquisa online de provedores está desativada.</p>' +
+                    '<p>Por favor, insira sua <strong>Chave da API Gemini</strong> na área de dashboard (topo da página) para ativá-la.</p>'
+                );
+                return;
+            }
+            
+            const generateContentUrl = `${generateContentBaseUrl}${apiKey}`;
+
             const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}" no Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
             
             const systemPrompt = "Você é um especialista em conectividade e pesquisa de provedores de internet. Use a pesquisa na web para obter dados atualizados. Apresente os resultados em TEXTO PLANO (sem Markdown ou HTML), listando o NOME do provedor e todos os contatos encontrados (telefone, WhatsApp, Instagram, site) de forma concisa e direta, usando quebras de linha para formatar. O foco é fornecer os contatos.";
@@ -804,7 +863,8 @@
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Erro HTTP: ${response.status}`);
+                        const errorBody = await response.json();
+                        throw new Error(`Erro HTTP: ${response.status} - ${errorBody.error?.message || 'Erro desconhecido'}`);
                     }
 
                     apiResponse = await response.json();
@@ -818,7 +878,7 @@
                     } else {
                         showMessageBox(
                             'Erro na Pesquisa',
-                            `<p>Não foi possível realizar a pesquisa online de provedores após ${maxRetries} tentativas. Verifique sua conexão ou tente novamente mais tarde.</p>`
+                            `<p>Não foi possível realizar a pesquisa online de provedores após ${maxRetries} tentativas. Verifique sua chave API, limite de uso ou conexão: ${error.message}</p>`
                         );
                         return;
                     }
@@ -899,6 +959,14 @@
         passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 handleLogin();
+            }
+        });
+        
+        // Listener para o botão salvar API Key
+        saveApiKeyButton.addEventListener('click', handleSaveApiKey);
+        apiKeyInput.addEventListener('keypress', (e) => {
+             if (e.key === 'Enter') {
+                handleSaveApiKey();
             }
         });
         
@@ -1013,6 +1081,9 @@
         
         // Inicializa o estado da aba ao carregar
         window.onload = () => { 
+            // Carrega a chave da API do localStorage, se houver
+            updateApiKeyDisplay();
+            
             // Inicializa as métricas com zero
             updateMetrics([], []);
             // Inicializa os filtros (vazios)
