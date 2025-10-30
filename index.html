@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapeador de Escolas</title>
     
+    <!-- Configuração do Tailwind CSS com a nova cor principal -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -19,6 +20,11 @@
                 600: '#234676',
                 700: '#1e3d64',
                 800: '#193352',
+              },
+              // NOVA COR ADICIONADA
+              secondaryBlue: {
+                500: '#0B5FEA',
+                600: '#0950c7' // Tom mais escuro para hover
               }
             },
             boxShadow: { // Adiciona uma sombra mais suave para os cards
@@ -90,7 +96,9 @@
             letter-spacing: 2px;
         }
     </style>
+    <!-- Carregamento das bibliotecas JS necessárias -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Biblioteca SheetJS para leitura de arquivos XLSX e XLS -->
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -98,6 +106,7 @@
     <div id="message-container"></div>
     <div id="message-overlay" class="hidden message-box-overlay"></div>
 
+    <!-- === INÍCIO: TELA DE LOGIN === -->
     <div id="login-container" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50 transition-opacity duration-500">
         <div class="bg-white p-8 md:p-10 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300">
             <h1 class="text-3xl font-extrabold text-gray-800 text-center mb-2">Mapeador de Escolas</h1>
@@ -123,9 +132,13 @@
             <p class="text-xs text-gray-400 text-center mt-6">Versão Beta - Acesso Restrito</p>
         </div>
     </div>
+    <!-- === FIM: TELA DE LOGIN === -->
+
+    <!-- === INÍCIO: CONTEÚDO PRINCIPAL (OCULTO INICIALMENTE) === -->
     <div id="app-container" class="hidden">
         <div class="container mx-auto p-4 md:p-6">
             
+            <!-- === DASHBOARD HEADER (Mapeador de Escolas + Botão de Upload) === -->
             <header class="flex justify-between items-start mb-6">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-800 mb-1">Mapeador de Escolas</h1>
@@ -134,21 +147,25 @@
                     </p>
                 </div>
                 
+                <!-- Componente de Upload de Arquivo no canto superior direito -->
                 <div class="flex items-center space-x-2 text-sm">
                     <span id="schoolCountDisplay" class="text-gray-600 font-medium">0 Escolas</span>
                     <div class="file-input-wrapper">
+                        <!-- Botão customizado de upload -->
                         <button id="uploadButton" class="flex items-center px-4 py-2 bg-mainBlue-500 text-white font-semibold rounded-lg shadow-md hover:bg-mainBlue-600 transition duration-200 text-sm">
                             Escolher arquivo <span id="fileIcon" class="ml-2">×</span>
                         </button>
+                        <!-- Input real de arquivo (escondido) -->
                         <input type="file" id="csvFileInput" accept=".xlsx,.xls" />
                     </div>
                 </div>
             </header>
             
+            <!-- === CAMPO DE API KEY === -->
             <div class="bg-white p-5 rounded-xl shadow-subtle mb-6 border border-yellow-200">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                     <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-2 md:mb-0">
-                        Chave da API Gemini (para Pesquisa de Provedores):
+                        Chave da API Gemini (para Pesquisa Online):
                     </label>
                     <div class="flex w-full md:w-auto md:min-w-[300px]">
                         <input type="text" id="apiKeyInput" placeholder="Cole sua chave aqui..." 
@@ -163,11 +180,16 @@
                     Status: <span class="font-semibold text-red-500">Nenhuma chave salva. A pesquisa online está desativada.</span>
                 </p>
             </div>
+            <!-- === FIM: CAMPO DE API KEY === -->
+
+            <!-- === CARDS DE MÉTRICAS (Indicadores) === -->
             <div id="metricsCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 
+                <!-- Card 1: Total de Escolas -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-mainBlue-50 text-mainBlue-500">
+                            <!-- Icone de Casa/Escola -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 13c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
                         </span>
                         <span id="totalSchools" class="text-3xl font-bold text-mainBlue-700">0</span>
@@ -175,9 +197,11 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Total de Escolas</p>
                 </div>
                 
+                <!-- Card 2: Grupos (5km) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-green-50 text-green-600">
+                            <!-- Icone de Grupo/Agrupamento -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-4.418 0-8 3.582-8 8s8 12 8 12 8-7.582 8-12-3.582-8-8-8zm0 11c-1.657 0-3-1.343-3-3s1.343-3 3-3 3 1.343 3 3-1.343 3-3 3z"/></svg>
                         </span>
                         <span id="totalGroups" class="text-3xl font-bold text-green-700">0</span>
@@ -185,9 +209,11 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Grupos (5km)</p>
                 </div>
                 
+                <!-- Card 3: Municípios Únicos (ÍCONE ATUALIZADO) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-purple-50 text-purple-600">
+                            <!-- Icone de Localização/Cidades (NOVO ÍCONE MAP PINNED) -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pinned-icon lucide-map-pinned"><path d="M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 0 1-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0 1 12 0z"/><circle cx="12" cy="8" r="2"/><path d="M8.714 14h-3.71a1 1 0 0 0-.948.683l-2.004 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .948-1.316l-2-6a1 1 0 0 0-.949-.684h-3.712"/></svg>
                         </span>
                         <span id="uniqueMunicipalities" class="text-3xl font-bold text-purple-700">0</span>
@@ -195,9 +221,11 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Municípios Únicos</p>
                 </div>
                 
+                <!-- Card 4: Mbps Médio (Download) -->
                 <div class="bg-white p-4 rounded-xl shadow-subtle flex flex-col justify-between h-32">
                     <div class="flex items-center justify-start space-x-3">
                         <span class="p-2 rounded-full bg-yellow-50 text-yellow-600">
+                            <!-- Icone de Velocidade/Download -->
                             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13 14h-2v-4h2v4zm1-8h-4V5h4v1zm-2 15c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/></svg>
                         </span>
                         <span id="avgDownloadMbps" class="text-3xl font-bold text-yellow-700">0</span>
@@ -205,24 +233,35 @@
                     <p class="text-sm font-medium text-gray-500 mt-2">Mbps Médio (Download)</p>
                 </div>
             </div>
+            <!-- === FIM: CARDS DE MÉTRICAS === -->
+
+            <!-- === INÍCIO: FILTROS DE ESTADO/MUNICÍPIO === -->
             <div class="bg-white p-5 rounded-xl shadow-subtle mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 
+                <!-- Filtro de Estado -->
                 <div>
                     <label for="filterState" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
                     <select id="filterState" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150">
                         <option value="Todos os Estados">Todos os Estados</option>
-                        </select>
+                        <!-- Opções serão preenchidas via JS -->
+                    </select>
                 </div>
                 
+                <!-- Filtro de Município -->
                 <div>
                     <label for="filterMunicipality" class="block text-sm font-medium text-gray-700 mb-1">Município</label>
                     <select id="filterMunicipality" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-mainBlue-500 focus:border-mainBlue-500 transition duration-150" disabled>
                         <option value="Todos os Municípios">Todos os Municípios</option>
-                        </select>
+                        <!-- Opções serão preenchidas via JS -->
+                    </select>
                 </div>
             </div>
+            <!-- === FIM: FILTROS DE ESTADO/MUNICÍPIO === -->
+            
+            <!-- Título da seção de resultados -->
             <h2 class="text-xl font-bold text-gray-800 mb-4">Grupos de Escolas</h2>
 
+            <!-- Container de Resultados (Grupos) -->
             <div id="resultsContainer" class="grid grid-cols-1 gap-6">
                 <div id="initialPrompt" class="bg-white p-10 rounded-xl shadow-subtle text-center text-gray-500 text-lg">
                     Carregue o arquivo XLSX para iniciar o agrupamento de escolas.
@@ -231,6 +270,9 @@
             </div>
         </div>
     </div>
+    <!-- === FIM: CONTEÚDO PRINCIPAL === -->
+
+    <!-- === INÍCIO: CÓDIGO JAVASCRIPT === -->
     <script type="module">
         // Variáveis de ambiente
         // A chave da API foi removida daqui e será definida pelo usuário.
@@ -647,6 +689,7 @@
          * Processa os dados de uma escola, garantindo que Lat/Long sejam números válidos.
          */
         function processSchool(school) {
+            // Mapeamento das colunas
             const latKey = actualColumnNames.LATITUDE;
             const lonKey = actualColumnNames.LONGITUDE;
             const nameKey = actualColumnNames.NAME;
@@ -654,6 +697,8 @@
             const addressKey = actualColumnNames.ADDRESS; 
             const providerKey = actualColumnNames.PROVIDER; 
             const stateKey = actualColumnNames.STATE;
+            const telefoneKey = actualColumnNames.TELEFONE; // Novo
+            const complementoKey = actualColumnNames.ENDERECO_COMPLEMENTAR; // Novo
 
             if (!school[latKey] || !school[lonKey]) return null;
 
@@ -676,7 +721,9 @@
                 address: school[addressKey] || 'Endereço não fornecido',
                 inep: school['INEP'] || 'INEP não fornecido',
                 providerName: school[providerKey] || 'N/A', 
-                vel_download: school[actualColumnNames.VEL_DOWNLOAD] || 'N/A'
+                vel_download: school[actualColumnNames.VEL_DOWNLOAD] || 'N/A',
+                telefone: school[telefoneKey] || 'N/A', // Novo
+                complemento: school[complementoKey] || 'N/A' // Novo
             };
         }
 
@@ -707,10 +754,20 @@
                     ? (groupDownloads.reduce((sum, v) => sum + v, 0) / groupDownloads.length).toFixed(1)
                     : 'N/A';
 
-                const schoolsHtml = group.schools.map((school) => `
-                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row hover:bg-mainBlue-50 transition duration-150">
+                const schoolsHtml = group.schools.map((school) => {
+                    // NOVO: Link do Google Maps (usando Endereço + Município + Estado)
+                    const queryAddress = encodeURIComponent(`${school.address}, ${group.municipality}, ${school.state}`);
+                    const googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${queryAddress}`;
+                    
+                    return `
+                    <li class="p-3 border-t border-gray-100 flex justify-between items-start flex-col sm:flex-row sm:items-center hover:bg-mainBlue-50 transition duration-150">
                         <div class="flex-grow">
                             <span class="font-semibold text-gray-700">${school.name}</span>
+                            
+                            <!-- NOVOS CAMPOS: Complemento e Telefone -->
+                            ${school.complemento && school.complemento !== 'N/A' ? `<span class="text-xs text-gray-600 font-medium block">${school.complemento}</span>` : ''}
+                            ${school.telefone && school.telefone !== 'N/A' ? `<span class="text-xs text-gray-600 block">Telefone: ${school.telefone}</span>` : ''}
+                            
                             <span class="text-xs text-gray-500 block">
                                 ${school.address} (${school.state}), INEP: ${school.inep}
                             </span>
@@ -718,14 +775,33 @@
                                 Provedor: ${school.providerName} (Velocidade: ${school.vel_download} Mbps)
                             </span>
                         </div>
-                        <button
-                            onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${group.municipality.replace(/'/g, "\\'")}')"
-                            class="mt-2 sm:mt-0 py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md whitespace-nowrap"
-                        >
-                            Pesquisar Provedores
-                        </button>
+                        
+                        <!-- Container de Botões Atualizado -->
+                        <div class="flex flex-col space-y-2 w-full sm:w-auto sm:ml-4 mt-3 sm:mt-0 flex-shrink-0">
+                            <button
+                                onclick="window.handleProviderSearch('${school.name.replace(/'/g, "\\'")}', '${group.municipality.replace(/'/g, "\\'")}')"
+                                class="py-1 px-3 bg-blue-500 text-white font-medium rounded-full hover:bg-blue-600 transition duration-200 text-xs shadow-md whitespace-nowrap w-full sm:w-auto text-center"
+                            >
+                                Pesquisar Provedores
+                            </button>
+                            <!-- BOTÃO SECRETARIA ATUALIZADO (Cor) -->
+                            <button
+                                onclick="window.handleSecretarySearch('${group.municipality.replace(/'/g, "\\'")}', '${school.state.replace(/'/g, "\\'")}')"
+                                class="py-1 px-3 bg-secondaryBlue-500 text-white font-medium rounded-full hover:bg-secondaryBlue-600 transition duration-200 text-xs shadow-md whitespace-nowrap w-full sm:w-auto text-center"
+                            >
+                                Pesquisar Secretaria
+                            </button>
+                             <!-- NOVO BOTÃO: Google Maps -->
+                            <a
+                                href="${googleMapsLink}"
+                                target="_blank"
+                                class="py-1 px-3 bg-green-500 text-white font-medium rounded-full hover:bg-green-600 transition duration-200 text-xs shadow-md whitespace-nowrap w-full sm:w-auto text-center"
+                            >
+                                Abrir no Maps
+                            </a>
+                        </div>
                     </li>
-                `).join('');
+                `}).join('');
 
                 const groupTitle = isSingleSchool 
                     ? `Escola Isolada (Grupo ${index + 1})` 
@@ -756,50 +832,28 @@
 
         }
 
-        // --- Lógica de Associação e WhatsApp (Mantida) ---
+        // --- Lógica de Associação e WhatsApp (Função associateProvider REMOVIDA) ---
         
         /**
-         * Salva o nome do provedor associado a uma escola.
+         * Formata o texto da API, adicionando links clicáveis para URLs e telefones (WhatsApp).
          */
-        window.associateProvider = (schoolName) => {
-            const providerInput = document.getElementById('providerInput');
-            const provider = providerInput.value ? providerInput.value.trim() : '';
+        function formatApiText(text) {
+            // 1. Regex para URLs (http, https) - Garante que não capture dentro de tags HTML
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            let formattedText = text.replace(urlRegex, (url) => {
+                // Evita re-formatar se já for um link (embora improvável)
+                if (url.includes('href=')) return url; 
+                return `<a href="${url}" target="_blank" class="text-blue-500 hover:underline">${url}</a>`;
+            });
 
-            if (!provider) {
-                showMessageBox("Aviso", "Por favor, insira o nome do provedor para associar.");
-                return;
-            }
-
-            const schoolToUpdate = schoolData.find(s => s.name === schoolName);
-
-            if (schoolToUpdate) {
-                schoolToUpdate.providerName = provider;
-                
-                // Recalcula o agrupamento principal
-                groupGroups = groupSchools(schoolData, MAX_DISTANCE_KM);
-
-                window.closeMessageBox();
-
-                // Confirmação com o usuário
-                showMessageBox(
-                    "Sucesso na Associação", 
-                    `A escola <strong>${schoolName}</strong> foi associada ao provedor <strong>${provider}</strong>. O dado foi salvo internamente.`
-                );
-                
-                // Re-renderiza a visualização atual
-                renderResults();
-            } else {
-                showMessageBox("Erro", "Não foi possível localizar a escola para atualização.");
-            }
-        };
-
-        /**
-         * Formata o conteúdo do texto, identificando números de telefone e adicionando links de WhatsApp.
-         */
-        function formatContentWithWhatsappLinks(text) {
+            // 2. Regex para telefones (WhatsApp)
+            // Regex melhorada para capturar DDI 55 (opcional) e números de 9 dígitos (com ou sem 9 inicial)
             const phoneRegex = /(?:\+?\s*(55)\s*)?\(?(\d{2})\)?\s*(\d{4,5}[-.\s]?\d{4})\b/g;
+            
+            formattedText = formattedText.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
+                // Evita criar link de WhatsApp para um link de URL já formatado (caso o número esteja na URL)
+                if (match.includes('href=')) return match; 
 
-            return text.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
                 let cleanNumber = '';
                 cleanNumber += ddd;
                 cleanNumber += numberPart.replace(/\D/g, ''); 
@@ -810,17 +864,21 @@
 
                 const waLink = `https://wa.me/${cleanNumber}`;
                 
+                // Retorna o número original e o link de WhatsApp
                 return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[Iniciar Conversa]</a>`;
             });
+
+            return formattedText;
         }
 
 
         // --- Lógica de Pesquisa de Provedores (Gemini API) ---
 
         /**
-         * Função principal para buscar provedores de internet usando a API Gemini (simulada).
+         * Função principal para buscar provedores de internet usando a API Gemini.
          */
         window.handleProviderSearch = async (schoolName, municipality) => {
+            // Verifica se a API key foi inserida pelo usuário
             if (!apiKey) {
                  showMessageBox(
                     'Pesquisa Desativada',
@@ -830,6 +888,7 @@
                 return;
             }
             
+            // Constroi a URL final com a chave fornecida
             const generateContentUrl = `${generateContentBaseUrl}${apiKey}`;
 
             const userQuery = `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${municipality}" no Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível (incluindo número de telefone, WhatsApp, Instagram, e URL do site). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os provedores. O foco é fornecer os contatos.`;
@@ -893,7 +952,7 @@
             if (candidate && candidate.content?.parts?.[0]?.text) {
                 contentText = candidate.content.parts[0].text;
                 
-                const formattedContent = formatContentWithWhatsappLinks(contentText);
+                const formattedContent = formatApiText(contentText);
 
                 let sources = [];
                 const groundingMetadata = candidate.groundingMetadata;
@@ -916,37 +975,138 @@
                     }
                 }
                 
-                // Formulário de Associação 
-                const actionHtml = `
-                    <div class="mt-4 p-3 bg-mainBlue-50 rounded-xl border border-mainBlue-300">
-                        <label for="providerInput" class="block text-sm font-semibold text-mainBlue-700 mb-2">
-                            Associar Provedor à Escola <strong>${schoolName}</strong>:
-                        </label>
-                        <input type="text" id="providerInput" placeholder="Digite o nome do provedor (ex: G Fibra)" 
-                            class="w-full p-2 border border-mainBlue-300 rounded-lg text-gray-700 mb-2 focus:ring-mainBlue-500 focus:border-mainBlue-500">
-                        <button 
-                            onclick="window.associateProvider('${schoolName.replace(/'/g, "\\'")}')"
-                            class="w-full py-2 px-4 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-200"
-                        >
-                            Confirmar e Agrupar
-                        </button>
-                    </div>
-                `;
-
-                // Exibe o resultado final com os links de WhatsApp E o formulário de associação
+                // Exibe o resultado final (Funcionalidade de associação REMOVIDA)
                 showMessageBox(
                     `Provedores para ${municipality}`,
                     `<p class="font-medium text-gray-800 mb-3">Resultado da pesquisa online para a escola <strong>${schoolName}</strong> (Município: ${municipality}):</p>
                     <div class="p-3 bg-gray-50 rounded-lg whitespace-pre-wrap">${formattedContent}</div>
                     ${sourcesHtml}`,
-                    false, // Not Loading
-                    actionHtml // Custom Action HTML
+                    false // Not Loading
+                    // O 'actionHtml' foi removido daqui
                 );
 
             } else {
                 showMessageBox(
                     'Erro na Pesquisa',
                     `<p>Não foi possível obter uma resposta detalhada sobre provedores de internet para esta região.</p>`
+                );
+            }
+        };
+
+        /**
+         * NOVO: Função para buscar Secretário de Educação usando a API Gemini.
+         */
+        window.handleSecretarySearch = async (municipality, state) => {
+            if (!apiKey) {
+                 showMessageBox(
+                    'Pesquisa Desativada',
+                    '<p>A funcionalidade de pesquisa online está desativada.</p>' +
+                    '<p>Por favor, insira sua <strong>Chave da API Gemini</strong> na área de dashboard (topo da página) para ativá-la.</p>'
+                );
+                return;
+            }
+            
+            const generateContentUrl = `${generateContentBaseUrl}${apiKey}`;
+
+            // Query específica para a Secretaria de Educação (ATUALIZADA)
+            const userQuery = `Encontre informações de contato da Secretaria de Educação do município de "${municipality}", estado "${state}", Brasil. Procure pelo NOME COMPLETO do(a) Secretário(a) de Educação, TELEFONE, E-MAIL, site oficial da secretaria, perfil do INSTAGRAM da secretaria (se houver) e também o perfil PESSOAL do INSTAGRAM do(a) secretário(a). Apresente o resultado em texto simples, sem usar formatação Markdown (como listas, negrito ou títulos). Use quebras de linha para separar os contatos.`;
+            
+            const systemPrompt = "Você é um assistente de pesquisa focado em encontrar contatos de órgãos públicos educacionais no Brasil. Use a pesquisa na web. Apresente os resultados em TEXTO PLANO (sem Markdown ou HTML), listando o NOME do secretário, e todos os contatos encontrados (telefone, e-mail, Instagram, site) de forma concisa e direta, usando quebras de linha para formatar.";
+
+            showMessageBox(
+                'Pesquisando Secretaria de Educação',
+                `<p>Aguarde enquanto pesquisamos contatos da secretaria de <strong>${municipality}, ${state}</strong>.</p>`,
+                true // Is Loading
+            );
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+
+            const maxRetries = 3;
+            let attempt = 0;
+            let apiResponse = null;
+
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(generateContentUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`Erro HTTP: ${response.status} - ${errorBody.error?.message || 'Erro desconhecido'}`);
+                    }
+
+                    apiResponse = await response.json();
+                    break; 
+                } catch (error) {
+                    console.error(`Tentativa ${attempt + 1} falhou:`, error);
+                    attempt++;
+                    if (attempt < maxRetries) {
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        showMessageBox(
+                            'Erro na Pesquisa',
+                            `<p>Não foi possível realizar a pesquisa online da secretaria após ${maxRetries} tentativas. Verifique sua chave API, limite de uso ou conexão: ${error.message}</p>`
+                        );
+                        return;
+                    }
+                }
+            }
+
+            // Processa a resposta da API
+            const candidate = apiResponse?.candidates?.[0];
+            let contentText = 'Não foi possível obter uma resposta detalhada sobre a secretaria para esta região.';
+            let sourcesHtml = '';
+
+            if (candidate && candidate.content?.parts?.[0]?.text) {
+                contentText = candidate.content.parts[0].text;
+                
+                // Formata links de WhatsApp e URLs
+                const formattedContent = formatApiText(contentText);
+
+                let sources = [];
+                const groundingMetadata = candidate.groundingMetadata;
+                if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                    sources = groundingMetadata.groundingAttributions
+                        .map(attribution => ({
+                            uri: attribution.web?.uri,
+                            title: attribution.web?.title,
+                        }))
+                        .filter(source => source.uri && source.title); 
+
+                    if (sources.length > 0) {
+                        sourcesHtml = '<div class="mt-4 pt-4 border-t border-gray-200">';
+                        sourcesHtml += '<h5 class="font-semibold text-xs text-gray-500 mb-1">Fontes de Pesquisa:</h5>';
+                        sourcesHtml += '<ul class="list-disc pl-5 text-xs text-gray-500 space-y-1">';
+                        sources.forEach(s => {
+                            sourcesHtml += `<li><a href="${s.uri}" target="_blank" class="hover:underline text-blue-500">${s.title}</a></li>`;
+                        });
+                        sourcesHtml += '</ul></div>';
+                    }
+                }
+                
+                // Exibe o resultado final
+                showMessageBox(
+                    `Secretaria de Educação - ${municipality}`,
+                    `<p class="font-medium text-gray-800 mb-3">Resultado da pesquisa online para a Secretaria de Educação de <strong>${municipality}, ${state}</strong>:</p>
+                    <div class="p-3 bg-gray-50 rounded-lg whitespace-pre-wrap">${formattedContent}</div>
+                    ${sourcesHtml}`,
+                    false // Not Loading
+                );
+
+            } else {
+                showMessageBox(
+                    'Erro na Pesquisa',
+                    `<p>Não foi possível obter uma resposta detalhada sobre a secretaria para esta região.</p>`
                 );
             }
         };
@@ -1028,6 +1188,7 @@
 
                                 const sampleSchool = rawData[0];
                                 
+                                // Mapeamento dinâmico das colunas
                                 actualColumnNames.LATITUDE = findActualKey("Lat corrigida", sampleSchool) || findActualKey("Latitude", sampleSchool) || findActualKey("Lat", sampleSchool);
                                 actualColumnNames.LONGITUDE = findActualKey("Long corrigida", sampleSchool) || findActualKey("Longitude", sampleSchool) || findActualKey("Long", sampleSchool);
                                 actualColumnNames.NAME = findActualKey("Nome da Escola", sampleSchool) || findActualKey("Escola", sampleSchool) || findActualKey("Nome", sampleSchool);
@@ -1037,6 +1198,9 @@
                                 actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || 'INEP';
                                 actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || findActualKey("Velocidade", sampleSchool) || 'Veloc. (Mbps) Dowload';
                                 actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || 'Provedor'; 
+                                // NOVAS COLUNAS
+                                actualColumnNames.TELEFONE = findActualKey("Telefone", sampleSchool) || 'Telefone';
+                                actualColumnNames.ENDERECO_COMPLEMENTAR = findActualKey("Endereço Complementar", sampleSchool) || findActualKey("Complemento", sampleSchool) || 'Endereço Complementar';
 
 
                                 if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
@@ -1096,3 +1260,6 @@
     </script>
 </body>
 </html>
+
+
+
