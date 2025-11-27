@@ -406,7 +406,7 @@
         // State Global
         let schoolData = [];
         let groupGroups = []; // Array of groups
-        let searchHistory = []; // NEW: Stores AI results
+        let searchHistory = []; // Stores AI results
         let activeTab = 'groups';
         let currentView = 'list'; 
         let selectedState = 'Todos os Estados';
@@ -414,6 +414,7 @@
         let mapInstance = null;
         let mapMarkers = [];
         let mapCircles = [];
+        let actualColumnNames = {}; // Store found columns
 
         // DOM Elements
         const loginContainer = document.getElementById('login-container');
@@ -699,53 +700,127 @@
             });
             resultsEl.innerHTML = html;
         }
+        
+        // --- LOGICA DE IMPORTACAO DE ARQUIVO (ORIGINAL DO SISTEMA API) ---
+        
+        function findActualKey(searchKey, school) {
+            const keys = Object.keys(school);
+            const normalizedSearchKey = searchKey.replace(/\s+/g, ' ').toLowerCase(); 
+            for (const key of keys) {
+                const normalizedKey = key.replace(/\s+/g, ' ').toLowerCase(); 
+                if (normalizedKey.includes(normalizedSearchKey)) {
+                    return key; 
+                }
+            }
+            return null;
+        }
+
+        function processSchool(school) {
+            // Mapeamento dinâmico baseado no findActualKey
+            const latKey = actualColumnNames.LATITUDE;
+            const lonKey = actualColumnNames.LONGITUDE;
+            const nameKey = actualColumnNames.NAME;
+            const municipalityKey = actualColumnNames.MUNICIPALITY;
+            const addressKey = actualColumnNames.ADDRESS; 
+            const providerKey = actualColumnNames.PROVIDER; 
+            const stateKey = actualColumnNames.STATE;
+            const telefoneKey = actualColumnNames.TELEFONE; 
+            const velKey = actualColumnNames.VEL_DOWNLOAD;
+
+            if (!school[latKey] || !school[lonKey]) return null;
+
+            let lat = parseFloat(String(school[latKey]).replace(',', '.'));
+            let lon = parseFloat(String(school[lonKey]).replace(',', '.'));
+
+            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return null;
+
+            return {
+                name: school[nameKey] || 'Sem Nome',
+                municipality: school[municipalityKey] || 'Município não fornecido',
+                state: school[stateKey] || 'N/A', 
+                lat: lat,
+                lon: lon,
+                address: school[addressKey] || 'Endereço não fornecido',
+                providerName: school[providerKey] || 'N/A', 
+                vel_download: school[velKey] || 'N/A',
+                telefone: school[telefoneKey] || 'N/A'
+            };
+        }
 
         document.getElementById('csvFileInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            
             const btn = document.getElementById('uploadButton');
+            const originalBtnText = btn.innerHTML;
             btn.innerHTML = `<span class="loading-spinner w-4 h-4 mr-2"></span> Lendo...`;
             btn.classList.add('bg-gray-400', 'cursor-not-allowed');
 
             const reader = new FileReader();
+            
             reader.onload = function(evt) {
                 try {
                     const data = new Uint8Array(evt.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Converte para CSV para usar o PapaParse (igual ao arquivo de API)
+                    const csvString = XLSX.utils.sheet_to_csv(worksheet);
 
-                    if(json.length === 0) throw new Error("Arquivo vazio");
-                    const findKey = (obj, substrs) => Object.keys(obj).find(k => substrs.some(sub => k.toLowerCase().includes(sub.toLowerCase())));
-                    const s = json[0];
-                    const latK = findKey(s, ['Lat', 'Latitude']); const lonK = findKey(s, ['Long', 'Longitude']); const munK = findKey(s, ['Município', 'Cidade', 'Municipality']); const nameK = findKey(s, ['Escola', 'Nome', 'Name']); const stateK = findKey(s, ['UF', 'Estado', 'State']); const addrK = findKey(s, ['Endereço', 'Address']); const provK = findKey(s, ['Provedor', 'Provider']); const velK = findKey(s, ['Veloc', 'Speed', 'Download']); const telK = findKey(s, ['Telefone', 'Fone']);
+                    Papa.parse(csvString, {
+                        header: true,
+                        dynamicTyping: false,
+                        skipEmptyLines: true,
+                        encoding: "utf8",
+                        complete: function(results) {
+                            const rawData = results.data;
+                            if (rawData.length === 0) throw new Error("Arquivo vazio");
 
-                    if(!latK || !lonK) { showToast('Erro: Colunas Latitude/Longitude não encontradas.', 'error'); return; }
+                            const sampleSchool = rawData[0];
+                            
+                            // Define as colunas dinamicamente
+                            actualColumnNames.LATITUDE = findActualKey("Lat corrigida", sampleSchool) || findActualKey("Latitude", sampleSchool) || findActualKey("Lat", sampleSchool);
+                            actualColumnNames.LONGITUDE = findActualKey("Long corrigida", sampleSchool) || findActualKey("Longitude", sampleSchool) || findActualKey("Long", sampleSchool);
+                            actualColumnNames.NAME = findActualKey("Nome da Escola", sampleSchool) || findActualKey("Escola", sampleSchool) || findActualKey("Nome", sampleSchool);
+                            actualColumnNames.MUNICIPALITY = findActualKey("Município", sampleSchool) || findActualKey("Cidade", sampleSchool) || findActualKey("Municipality", sampleSchool);
+                            actualColumnNames.STATE = findActualKey("UF", sampleSchool) || findActualKey("Estado", sampleSchool) || findActualKey("State", sampleSchool);
+                            actualColumnNames.ADDRESS = findActualKey("Endereço", sampleSchool) || findActualKey("Address", sampleSchool);
+                            actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || findActualKey("Provider", sampleSchool);
+                            actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || findActualKey("Velocidade", sampleSchool) || findActualKey("Speed", sampleSchool);
+                            actualColumnNames.TELEFONE = findActualKey("Telefone", sampleSchool) || findActualKey("Fone", sampleSchool);
 
-                    schoolData = json.map(row => {
-                        let lat = parseFloat(String(row[latK]).replace(',','.'));
-                        let lon = parseFloat(String(row[lonK]).replace(',','.'));
-                        if(isNaN(lat) || isNaN(lon)) return null;
-                        return {
-                            name: row[nameK] || 'Sem Nome', municipality: row[munK] || 'Desconhecido', state: row[stateK] || 'BR',
-                            lat: lat, lon: lon, address: row[addrK] || '', providerName: row[provK] || 'N/A', vel_download: row[velK] || 0, telefone: row[telK] || 'N/A'
-                        };
-                    }).filter(x => x);
+                            if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
+                                showToast('Erro: Colunas Latitude/Longitude não encontradas.', 'error');
+                                return;
+                            }
 
-                    const states = [...new Set(schoolData.map(x => x.state))].sort();
-                    document.getElementById('filterState').innerHTML = '<option value="Todos os Estados">Estado: Todos</option>' + states.map(x => `<option value="${x}">${x}</option>`).join('');
-                    selectedState = 'Todos os Estados'; selectedMunicipality = 'Todos os Municípios';
-                    renderData();
-                    showToast(`${schoolData.length} escolas importadas com sucesso!`, 'success');
-                    if(schoolData.length > 0) switchView('map');
+                            // Processa os dados usando a lógica robusta
+                            schoolData = rawData.map(processSchool).filter(x => x);
 
-                } catch(err) { console.error(err); showToast('Erro ao processar arquivo.', 'error'); } finally {
+                            // Atualiza Filtros
+                            const states = [...new Set(schoolData.map(x => x.state))].filter(Boolean).sort();
+                            document.getElementById('filterState').innerHTML = '<option value="Todos os Estados">Estado: Todos</option>' + states.map(x => `<option value="${x}">${x}</option>`).join('');
+                            selectedState = 'Todos os Estados'; selectedMunicipality = 'Todos os Municípios';
+                            
+                            renderData();
+                            showToast(`${schoolData.length} escolas importadas com sucesso!`, 'success');
+                            if(schoolData.length > 0) switchView('map');
+                        }
+                    });
+
+                } catch(err) { 
+                    console.error(err); 
+                    showToast('Erro ao processar arquivo: ' + err.message, 'error'); 
+                } finally {
                     btn.innerHTML = `<i class="ph ph-upload-simple text-lg mr-2"></i> Carregar Planilha`;
                     btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
                 }
             };
             reader.readAsArrayBuffer(file);
         });
+
+        // --- FIM DA LOGICA DE IMPORTACAO ---
 
         document.getElementById('filterState').addEventListener('change', (e) => {
             selectedState = e.target.value;
@@ -774,7 +849,7 @@
             showToast("Relatório Excel gerado com sucesso!", "success");
         };
 
-        // ================= AI SEARCH & HISTORY (NEW LOGIC) =================
+        // ================= AI SEARCH & HISTORY =================
         
         window.toggleApiKeySection = () => { document.getElementById('apiKeySection').classList.toggle('hidden'); };
         document.getElementById('saveApiKeyButton').addEventListener('click', () => {
@@ -788,33 +863,56 @@
         const storedKey = localStorage.getItem('g10_gemini_key');
         if(storedKey) { apiKey = storedKey; document.getElementById('apiKeyInput').value = storedKey; updateApiStatus(true); }
 
-        // --- NEW: Render History & Export ---
+        // --- HELPER: Formata Texto da API (Links e Telefones) ---
+        function formatApiText(text) {
+            // 1. Regex para URLs (http, https)
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            let formattedText = text.replace(urlRegex, (url) => {
+                if (url.includes('href=')) return url; 
+                return `<a href="${url}" target="_blank" class="text-blue-500 hover:underline">${url}</a>`;
+            });
+
+            // 2. Regex para telefones (WhatsApp)
+            const phoneRegex = /(?:\+?\s*(55)\s*)?\(?(\d{2})\)?\s*(\d{4,5}[-.\s]?\d{4})\b/g;
+            
+            formattedText = formattedText.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
+                if (match.includes('href=')) return match; 
+
+                let cleanNumber = '';
+                cleanNumber += ddd;
+                cleanNumber += numberPart.replace(/\D/g, ''); 
+                
+                if (!cleanNumber.startsWith('55')) {
+                    cleanNumber = '55' + cleanNumber;
+                }
+
+                const waLink = `https://wa.me/${cleanNumber}`;
+                
+                return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[Iniciar Conversa]</a>`;
+            });
+
+            // 3. Formatação simples de negrito para Markdown
+            formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            return formattedText;
+        }
+
+        // --- Render History & Export ---
         
         function renderSearchHistory() {
             const container = document.getElementById('searchHistoryList');
             const empty = document.getElementById('historyEmptyState');
             const btn = document.getElementById('exportHistoryBtn');
 
-            // Proteção contra erro de elemento nulo
-            if (!container || !empty || !btn) {
-                console.warn('Elementos de histórico não encontrados no DOM.');
-                return;
-            }
+            if (!container || !empty || !btn) return;
 
             if (searchHistory.length === 0) {
-                empty.classList.remove('hidden');
-                container.classList.add('hidden');
-                container.innerHTML = '';
-                btn.disabled = true;
+                empty.classList.remove('hidden'); container.classList.add('hidden');
+                container.innerHTML = ''; btn.disabled = true;
                 return;
             }
 
-            // Tem itens
-            empty.classList.add('hidden');
-            container.classList.remove('hidden');
-            btn.disabled = false;
-            
-            // Limpa o container para re-renderizar
+            empty.classList.add('hidden'); container.classList.remove('hidden'); btn.disabled = false;
             container.innerHTML = '';
 
             searchHistory.forEach((item, index) => {
@@ -824,10 +922,8 @@
                 const border = isProvider ? 'border-l-mainBlue-500' : 'border-l-secondaryBlue-500';
                 const title = isProvider ? 'Provedores' : 'Secretaria';
 
-                // Format text with simple bold/links
-                const formattedContent = item.content
-                    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-blue-600 underline">$1</a>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // Aplica a formatação rica (Links, WhatsApp, Negrito)
+                const formattedContent = formatApiText(item.content);
 
                 const card = document.createElement('div');
                 card.className = `bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 ${border} animate-slide-up relative`;
@@ -862,34 +958,25 @@
             showToast("Histórico exportado com sucesso!", "success");
         };
 
-        // --- Modified AI Search ---
+        // --- AI Search ---
 
         window.aiSearch = async (name, city, state, type) => {
             if(!apiKey) { showToast("Configure a Chave API primeiro.", "error"); toggleApiKeySection(); return; }
 
-            // 1. Switch to Results Tab
             window.setActiveTab('manual');
-
             const isProvider = type === 'provider';
-            
-            // 2. Add Loading State to History
             const tempId = Date.now();
-            const newItem = {
-                id: tempId,
-                type: type,
-                city: city,
-                state: state,
-                content: "Pesquisando informações na inteligência artificial... Aguarde.",
-                timestamp: new Date().toLocaleString('pt-BR'),
-                loading: true
-            };
+            const newItem = { id: tempId, type: type, city: city, state: state, content: "Pesquisando informações na inteligência artificial... Aguarde.", timestamp: new Date().toLocaleString('pt-BR'), loading: true };
             
-            searchHistory.unshift(newItem); // Add to top
+            searchHistory.unshift(newItem); 
             renderSearchHistory();
 
+            // Prompt atualizado para pedir explicitamente os campos: Nome, Telefone, WhatsApp, Site, Instagram
             const prompt = isProvider 
-                ? `Liste provedores de internet (ISPs) e fibra óptica que atendem ${city}, ${state}. Para cada um, forneça Nome, Telefone/WhatsApp e Site. Texto simples e direto.`
-                : `Encontre contatos da Secretaria de Educação de ${city}, ${state}. Busque por Nome do Secretário(a), Telefone, Email e Instagram oficial. Texto simples.`;
+                ? `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${city}, ${state}" no Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível: Telefone, WhatsApp, URL do Site e Instagram. Apresente o resultado em texto simples, sem usar formatação Markdown complexa. Use quebras de linha para separar os provedores.`
+                : `Encontre contatos da Secretaria de Educação de ${city}, ${state}. Busque por Nome do Secretário(a), Telefone, Email, Site Oficial e Instagram oficial. Texto simples.`;
+            
+            const systemPrompt = "Você é um especialista em conectividade e pesquisa de provedores de internet. Use a pesquisa na web para obter dados atualizados. Apresente os resultados em TEXTO PLANO, listando o NOME do provedor e todos os contatos encontrados (telefone, WhatsApp, Instagram, site) de forma concisa e direta.";
 
             try {
                 const response = await fetch(`${generateContentBaseUrl}${apiKey}`, {
@@ -897,7 +984,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        tools: [{ "google_search": {} }]
+                        tools: [{ "google_search": {} }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
                     })
                 });
 
@@ -905,24 +993,14 @@
                 if(data.error) throw new Error(data.error.message);
 
                 const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sem informações encontradas.";
-                
-                // 3. Update History Item with Success
                 const itemIndex = searchHistory.findIndex(x => x.id === tempId);
-                if(itemIndex !== -1) {
-                    searchHistory[itemIndex].content = text;
-                    searchHistory[itemIndex].loading = false;
-                }
+                if(itemIndex !== -1) { searchHistory[itemIndex].content = text; searchHistory[itemIndex].loading = false; }
 
             } catch (err) {
-                // 4. Update History Item with Error
                 const itemIndex = searchHistory.findIndex(x => x.id === tempId);
-                if(itemIndex !== -1) {
-                    searchHistory[itemIndex].content = `Erro na pesquisa: ${err.message}`;
-                    searchHistory[itemIndex].loading = false;
-                }
+                if(itemIndex !== -1) { searchHistory[itemIndex].content = `Erro na pesquisa: ${err.message}`; searchHistory[itemIndex].loading = false; }
                 showToast("Erro na pesquisa IA.", "error");
             }
-
             renderSearchHistory();
         };
 
@@ -959,6 +1037,3 @@
     </script>
 </body>
 </html>
-
-
-
