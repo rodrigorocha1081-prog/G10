@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buscador de Provedores</title>
+    <title>Buscador de Provedores v3.4 (Geo INEP)</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -83,6 +83,21 @@
 
         /* Mapa */
         #map { height: 500px; width: 100%; border-radius: 0.75rem; z-index: 1; }
+        
+        /* Cursor personalizado para régua */
+        .cursor-crosshair { cursor: crosshair !important; }
+
+        /* Custom Leaflet Controls */
+        .leaflet-control-measure {
+            background: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            padding: 5px;
+            cursor: pointer;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+        }
+        .leaflet-control-measure:hover { background: #f4f4f4; }
+        .measure-active { background-color: #dcfce7 !important; border-color: #16a34a !important; color: #16a34a; }
 
         /* Login Background */
         .login-bg {
@@ -162,7 +177,7 @@
                     Acessar Painel
                 </button>
             </div>
-            <p class="text-xs text-gray-400 text-center mt-8">G10 Telecom &copy; 2025. Versão Beta 3.0.</p>
+            <p class="text-xs text-gray-400 text-center mt-8">G10 Telecom © 2025. Versão Beta 3.4.</p>
         </div>
     </div>
 
@@ -309,10 +324,17 @@
                         </div>
 
                         <!-- MAP CONTAINER (Hidden by default or empty) -->
-                        <div id="mapContainer" class="hidden mb-6 bg-white p-2 rounded-xl shadow-subtle border border-gray-200 animate-fade-in">
+                        <div id="mapContainer" class="hidden mb-6 bg-white p-2 rounded-xl shadow-subtle border border-gray-200 animate-fade-in relative">
                             <div id="map"></div>
-                            <p class="text-xs text-gray-400 mt-2 px-2 flex items-center">
-                                <i class="ph ph-info mr-1"></i> As cores representam grupos de proximidade.
+                            
+                            <!-- Legenda / Instruções Medição (aparece quando ativo) -->
+                            <div id="measureInstructions" class="hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg text-xs font-semibold text-gray-700 z-[500] border border-gray-200 flex items-center gap-2">
+                                <i class="ph ph-ruler text-mainBlue-600 text-lg"></i>
+                                Clique no mapa para adicionar pontos
+                            </div>
+
+                            <p class="text-xs text-gray-400 mt-2 px-2 flex items-center justify-between">
+                                <span><i class="ph ph-info mr-1"></i> As cores representam grupos de proximidade.</span>
                             </p>
                         </div>
 
@@ -402,6 +424,17 @@
             { username: "Admin", password: "123" } // Dev
         ];
         const BRAZILIAN_STATES = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
+        
+        // Approximate latitude bounds for states to distinguish huge scale errors (e.g. -3 vs -30)
+        const STATE_RANGES = {
+            'AC': [-12, -7], 'AL': [-11, -8], 'AP': [-2, 5], 'AM': [-10, 2],
+            'BA': [-19, -8], 'CE': [-8, -2], 'DF': [-16.1, -15.4], 'ES': [-22, -17],
+            'GO': [-19.5, -12], 'MA': [-11, -1], 'MT': [-18, -7], 'MS': [-24, -17],
+            'MG': [-23, -14], 'PA': [-10, 3], 'PB': [-8, -6], 'PR': [-27, -22],
+            'PE': [-10, -7], 'PI': [-11, -2], 'RJ': [-24, -20], 'RN': [-7, -4],
+            'RS': [-34, -27], 'RO': [-14, -7], 'RR': [-2, 6], 'SC': [-30, -25],
+            'SP': [-26, -19], 'SE': [-12, -9], 'TO': [-13, -5]
+        };
 
         // State Global
         let schoolData = [];
@@ -415,6 +448,13 @@
         let mapMarkers = [];
         let mapCircles = [];
         let actualColumnNames = {}; // Store found columns
+        
+        // Measure Tool State
+        let measureActive = false;
+        let measurePoints = [];
+        let measureMarkers = [];
+        let measurePolyline = null;
+        let measureTooltip = null;
 
         // DOM Elements
         const loginContainer = document.getElementById('login-container');
@@ -503,14 +543,138 @@
         document.getElementById('login-button').addEventListener('click', handleLogin);
         document.getElementById('password').addEventListener('keydown', (e) => e.key === 'Enter' && handleLogin());
 
-        // ================= MAP VISUALIZATION =================
+        // ================= MAP VISUALIZATION & MEASURE TOOL =================
         function initMap() {
             if (mapInstance) return;
-            mapInstance = L.map('map').setView([-14.2350, -51.9253], 4);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
-            }).addTo(mapInstance);
+
+            // 1. Definição das Camadas
+            // Mapa de Estrada (OpenStreetMap)
+            const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            });
+
+            // Satélite (Google Satellite) - Tem zoom muito melhor
+            const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google',
+                maxZoom: 22,      // Permite zoom profundo
+                maxNativeZoom: 19 // Se não houver tile no zoom 20+, estica o do 19
+            });
+            
+            // Híbrido (Google Hybrid) - Satélite + Ruas
+            const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google',
+                maxZoom: 22,
+                maxNativeZoom: 19
+            });
+
+            // 2. Inicialização do Mapa
+            mapInstance = L.map('map', {
+                center: [-14.2350, -51.9253],
+                zoom: 4,
+                layers: [osm], 
+                zoomControl: false 
+            });
+
+            L.control.zoom({ position: 'topleft' }).addTo(mapInstance);
+
+            // 3. Controle de Camadas
+            const baseMaps = {
+                "Mapa Estrada": osm,
+                "Satélite (Google)": googleSat,
+                "Híbrido (Google)": googleHybrid
+            };
+            L.control.layers(baseMaps, null, { position: 'topright' }).addTo(mapInstance);
+
+            // 4. Ferramenta de Medição (Custom Control)
+            const MeasureControl = L.Control.extend({
+                options: { position: 'topleft' },
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-measure');
+                    container.innerHTML = `<i class="ph ph-ruler" style="font-size: 18px; display: block; margin: 2px;"></i>`;
+                    container.title = "Medir Distância";
+                    container.onclick = function(e) {
+                        e.stopPropagation();
+                        toggleMeasureTool(container);
+                    }
+                    return container;
+                }
+            });
+            mapInstance.addControl(new MeasureControl());
+
+            // 5. Evento de Clique para Medição
+            mapInstance.on('click', function(e) {
+                if (measureActive) addMeasurePoint(e.latlng);
+            });
         }
+
+        function toggleMeasureTool(btnElement) {
+            measureActive = !measureActive;
+            const mapEl = document.getElementById('map');
+            const instructions = document.getElementById('measureInstructions');
+
+            if (measureActive) {
+                btnElement.classList.add('measure-active');
+                mapEl.classList.add('cursor-crosshair');
+                instructions.classList.remove('hidden');
+                // Mantém medições anteriores se houver, ou começa limpo
+            } else {
+                btnElement.classList.remove('measure-active');
+                mapEl.classList.remove('cursor-crosshair');
+                instructions.classList.add('hidden');
+                clearMeasurement();
+            }
+        }
+
+        function addMeasurePoint(latlng) {
+            // Adiciona marcador (ponto)
+            const marker = L.circleMarker(latlng, {
+                radius: 4, color: '#16a34a', fillColor: 'white', opacity: 1, fillOpacity: 1, interactive: false
+            }).addTo(mapInstance);
+            measureMarkers.push(marker);
+            measurePoints.push(latlng);
+
+            // Desenha linha
+            if (measurePoints.length > 1) {
+                if (measurePolyline) measurePolyline.remove();
+                
+                measurePolyline = L.polyline(measurePoints, {
+                    color: '#16a34a', weight: 3, dashArray: '5, 10'
+                }).addTo(mapInstance);
+
+                // Calcula Distância Total
+                let totalDistance = 0;
+                for (let i = 0; i < measurePoints.length - 1; i++) {
+                    totalDistance += mapInstance.distance(measurePoints[i], measurePoints[i+1]);
+                }
+
+                // Exibe Tooltip no último ponto
+                const distanceText = totalDistance > 1000 
+                    ? (totalDistance / 1000).toFixed(2) + ' km' 
+                    : Math.round(totalDistance) + ' m';
+
+                if (measureTooltip) measureTooltip.remove();
+                
+                measureTooltip = L.popup({ autoClose: false, closeOnClick: false, className: 'font-bold' })
+                    .setLatLng(latlng)
+                    .setContent(`<div class="text-center text-sm">
+                        Distância: <span class="text-green-600">${distanceText}</span><br>
+                        <button onclick="window.clearMeasurement(true)" class="text-xs text-red-500 underline mt-1">Limpar</button>
+                    </div>`)
+                    .openOn(mapInstance);
+            }
+        }
+
+        window.clearMeasurement = (keepActive = false) => {
+            measureMarkers.forEach(m => m.remove());
+            measureMarkers = [];
+            measurePoints = [];
+            if (measurePolyline) { measurePolyline.remove(); measurePolyline = null; }
+            if (measureTooltip) { measureTooltip.remove(); measureTooltip = null; }
+            if (keepActive) {
+                // Apenas limpa os pontos, mantém ferramenta ativa
+            }
+        };
 
         function getColorForGroup(index) {
             const colors = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#db2777', '#ca8a04'];
@@ -519,6 +683,8 @@
 
         function updateMap(groups) {
             if (!mapInstance) initMap();
+            
+            // Remove apenas marcadores de grupos, mantém os de medição
             mapMarkers.forEach(m => m.remove());
             mapCircles.forEach(c => c.remove());
             mapMarkers = [];
@@ -660,17 +826,25 @@
 
                 let schoolsList = g.schools.map(s => {
                     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address + ',' + s.municipality)}`;
+                    // INEP Update Button
+                    const inepBtn = s.inep ? `
+                        <button onclick="window.updateLocationByInep('${s.id}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded tooltip-trigger" title="Atualizar Coord. via INEP (IA)">
+                            <i class="ph ph-crosshair text-lg"></i>
+                        </button>` : '';
+
                     return `
                     <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-50 last:border-0 hover:bg-gray-50 px-4 -mx-4 transition">
                         <div class="mb-2 sm:mb-0">
                             <div class="font-semibold text-gray-800 text-sm flex items-center gap-2">
                                 ${s.name}
+                                ${s.inep ? `<span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded border border-gray-300">INEP: ${s.inep}</span>` : ''}
                                 ${s.telefone && s.telefone !== 'N/A' ? `<span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200"><i class="ph ph-phone"></i> ${s.telefone}</span>` : ''}
                             </div>
                             <div class="text-xs text-gray-500 mt-0.5">${s.address}</div>
                             <div class="text-xs text-blue-500 mt-0.5 font-medium">${s.providerName} • ${s.vel_download} Mbps</div>
                         </div>
                         <div class="flex gap-2">
+                            ${inepBtn}
                             <button onclick="window.aiSearch('${s.name}', '${s.municipality}', '${s.state}', 'provider')" class="p-1.5 text-mainBlue-500 hover:bg-mainBlue-50 rounded tooltip-trigger" title="Buscar Provedores"><i class="ph ph-wifi-high text-lg"></i></button>
                             <button onclick="window.aiSearch('${s.name}', '${s.municipality}', '${s.state}', 'secretary')" class="p-1.5 text-secondaryBlue-500 hover:bg-secondaryBlue-50 rounded" title="Buscar Secretaria"><i class="ph ph-student text-lg"></i></button>
                             <a href="${mapUrl}" target="_blank" class="p-1.5 text-green-500 hover:bg-green-50 rounded" title="Abrir no Maps"><i class="ph ph-map-pin text-lg"></i></a>
@@ -715,8 +889,34 @@
             return null;
         }
 
-        function processSchool(school) {
-            // Mapeamento dinâmico baseado no findActualKey
+        // --- NEW: ROBUST COORDINATE FIXER ---
+        function fixCoordinate(val, type, state) {
+            let n = parseFloat(String(val).replace(',', '.'));
+            if(isNaN(n) || n === 0) return 0;
+
+            const MAX_ABS = type === 'lat' ? 90 : 180;
+            while (Math.abs(n) > MAX_ABS && n !== 0) n /= 10;
+
+            if (type === 'lon') {
+                if (Math.abs(n) < 30 && Math.abs(n*10) >= 30 && Math.abs(n*10) <= 75) n *= 10;
+                while (Math.abs(n) > 75 && n !== 0) n /= 10;
+            }
+            
+            if (type === 'lat') {
+                while (Math.abs(n) > 35 && n !== 0) n /= 10;
+                if (state && STATE_RANGES[state]) {
+                    const [min, max] = STATE_RANGES[state];
+                    if (n < min || n > max) {
+                        if (n/10 >= min && n/10 <= max) n /= 10;
+                        else if (n*10 >= min && n*10 <= max) n *= 10;
+                    }
+                }
+            }
+            return n;
+        }
+
+        function processSchool(school, index) {
+            // Mapeamento dinâmico
             const latKey = actualColumnNames.LATITUDE;
             const lonKey = actualColumnNames.LONGITUDE;
             const nameKey = actualColumnNames.NAME;
@@ -726,24 +926,30 @@
             const stateKey = actualColumnNames.STATE;
             const telefoneKey = actualColumnNames.TELEFONE; 
             const velKey = actualColumnNames.VEL_DOWNLOAD;
+            const inepKey = actualColumnNames.INEP;
 
             if (!school[latKey] || !school[lonKey]) return null;
 
-            let lat = parseFloat(String(school[latKey]).replace(',', '.'));
-            let lon = parseFloat(String(school[lonKey]).replace(',', '.'));
+            const state = school[stateKey] || null;
+            
+            // Use the new fixer
+            let lat = fixCoordinate(school[latKey], 'lat', state);
+            let lon = fixCoordinate(school[lonKey], 'lon', state);
 
-            if (isNaN(lat) || isNaN(lon) || lat === 0 || lon === 0) return null;
+            if (lat === 0 || lon === 0) return null;
 
             return {
+                id: `school-${index}`, // Unique ID for updates
                 name: school[nameKey] || 'Sem Nome',
                 municipality: school[municipalityKey] || 'Município não fornecido',
-                state: school[stateKey] || 'N/A', 
+                state: state || 'N/A', 
                 lat: lat,
                 lon: lon,
                 address: school[addressKey] || 'Endereço não fornecido',
                 providerName: school[providerKey] || 'N/A', 
                 vel_download: school[velKey] || 'N/A',
-                telefone: school[telefoneKey] || 'N/A'
+                telefone: school[telefoneKey] || 'N/A',
+                inep: school[inepKey] || null
             };
         }
 
@@ -764,8 +970,6 @@
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    
-                    // Converte para CSV para usar o PapaParse (igual ao arquivo de API)
                     const csvString = XLSX.utils.sheet_to_csv(worksheet);
 
                     Papa.parse(csvString, {
@@ -789,14 +993,15 @@
                             actualColumnNames.PROVIDER = findActualKey("Nome do Provedor", sampleSchool) || findActualKey("Provedor", sampleSchool) || findActualKey("Provider", sampleSchool);
                             actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || findActualKey("Velocidade", sampleSchool) || findActualKey("Speed", sampleSchool);
                             actualColumnNames.TELEFONE = findActualKey("Telefone", sampleSchool) || findActualKey("Fone", sampleSchool);
+                            actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || findActualKey("Código INEP", sampleSchool);
 
                             if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
                                 showToast('Erro: Colunas Latitude/Longitude não encontradas.', 'error');
                                 return;
                             }
 
-                            // Processa os dados usando a lógica robusta
-                            schoolData = rawData.map(processSchool).filter(x => x);
+                            // Processa os dados
+                            schoolData = rawData.map((s, i) => processSchool(s, i)).filter(x => x);
 
                             // Atualiza Filtros
                             const states = [...new Set(schoolData.map(x => x.state))].filter(Boolean).sort();
@@ -839,7 +1044,7 @@
             groupGroups.forEach((g, gIdx) => {
                 g.schools.forEach(s => {
                     rows.push({
-                        "Grupo ID": gIdx + 1, "Cluster Size": g.schools.length, "Escola": s.name, "Município": s.municipality, "UF": s.state,
+                        "Grupo ID": gIdx + 1, "Cluster Size": g.schools.length, "INEP": s.inep, "Escola": s.name, "Município": s.municipality, "UF": s.state,
                         "Latitude": s.lat, "Longitude": s.lon, "Provedor Atual": s.providerName, "Velocidade": s.vel_download, "Endereço": s.address
                     });
                 });
@@ -865,35 +1070,21 @@
 
         // --- HELPER: Formata Texto da API (Links e Telefones) ---
         function formatApiText(text) {
-            // 1. Regex para URLs (http, https)
             const urlRegex = /(https?:\/\/[^\s<]+)/g;
             let formattedText = text.replace(urlRegex, (url) => {
                 if (url.includes('href=')) return url; 
                 return `<a href="${url}" target="_blank" class="text-blue-500 hover:underline">${url}</a>`;
             });
 
-            // 2. Regex para telefones (WhatsApp)
             const phoneRegex = /(?:\+?\s*(55)\s*)?\(?(\d{2})\)?\s*(\d{4,5}[-.\s]?\d{4})\b/g;
-            
             formattedText = formattedText.replace(phoneRegex, (match, ddi, ddd, numberPart) => {
                 if (match.includes('href=')) return match; 
-
-                let cleanNumber = '';
-                cleanNumber += ddd;
-                cleanNumber += numberPart.replace(/\D/g, ''); 
-                
-                if (!cleanNumber.startsWith('55')) {
-                    cleanNumber = '55' + cleanNumber;
-                }
-
+                let cleanNumber = ''; cleanNumber += ddd; cleanNumber += numberPart.replace(/\D/g, ''); 
+                if (!cleanNumber.startsWith('55')) cleanNumber = '55' + cleanNumber;
                 const waLink = `https://wa.me/${cleanNumber}`;
-                
                 return `${match} <a href="${waLink}" target="_blank" class="text-green-600 font-semibold hover:underline">[Iniciar Conversa]</a>`;
             });
-
-            // 3. Formatação simples de negrito para Markdown
             formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
             return formattedText;
         }
 
@@ -922,7 +1113,6 @@
                 const border = isProvider ? 'border-l-mainBlue-500' : 'border-l-secondaryBlue-500';
                 const title = isProvider ? 'Provedores' : 'Secretaria';
 
-                // Aplica a formatação rica (Links, WhatsApp, Negrito)
                 const formattedContent = formatApiText(item.content);
 
                 const card = document.createElement('div');
@@ -971,7 +1161,6 @@
             searchHistory.unshift(newItem); 
             renderSearchHistory();
 
-            // Prompt atualizado para pedir explicitamente os campos: Nome, Telefone, WhatsApp, Site, Instagram
             const prompt = isProvider 
                 ? `Encontre provedores de internet (ISPs) ou redes de fibra óptica que atendam ou estejam próximos à área de "${city}, ${state}" no Brasil. Para CADA provedor encontrado, forneça seu NOME COMPLETO e o máximo de CONTATOS possível: Telefone, WhatsApp, URL do Site e Instagram. Apresente o resultado em texto simples, sem usar formatação Markdown complexa. Use quebras de linha para separar os provedores.`
                 : `Encontre contatos da Secretaria de Educação de ${city}, ${state}. Busque por Nome do Secretário(a), Telefone, Email, Site Oficial e Instagram oficial. Texto simples.`;
@@ -1002,6 +1191,56 @@
                 showToast("Erro na pesquisa IA.", "error");
             }
             renderSearchHistory();
+        };
+
+        // --- UPDATE LOCATION BY INEP (NEW) ---
+        window.updateLocationByInep = async (schoolId) => {
+            if(!apiKey) { showToast("Configure a Chave API primeiro.", "error"); toggleApiKeySection(); return; }
+
+            const school = schoolData.find(s => s.id === schoolId);
+            if (!school || !school.inep) { showToast("Escola ou INEP inválido.", "error"); return; }
+
+            showToast(`Buscando localização para INEP ${school.inep}...`, "info");
+            
+            // Construct precise prompt
+            const prompt = `Identify the geographic coordinates (latitude and longitude) for the school with INEP Code ${school.inep} named "${school.name}" in municipality "${school.municipality}" (${school.state}), Brazil. Use reliable sources. Return ONLY the coordinates in this specific format: "LAT: -00.00000, LON: -00.00000". Do not write anything else.`;
+
+            try {
+                const response = await fetch(`${generateContentBaseUrl}${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        tools: [{ "google_search": {} }],
+                        systemInstruction: { parts: [{ text: "You are a coordinate finder bot. Return only LAT/LON values." }] }
+                    })
+                });
+
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                
+                // Parse Regex
+                const match = text.match(/LAT:\s*(-?\d+\.\d+).*LON:\s*(-?\d+\.\d+)/i);
+                
+                if (match) {
+                    const newLat = parseFloat(match[1]);
+                    const newLon = parseFloat(match[2]);
+                    
+                    // Update School Data
+                    school.lat = newLat;
+                    school.lon = newLon;
+                    
+                    showToast(`Localização atualizada! Lat: ${newLat}, Lon: ${newLon}`, "success");
+                    renderData(); // Refresh UI
+                } else {
+                    console.error("AI Response:", text);
+                    showToast("Não foi possível determinar as coordenadas exatas.", "error");
+                }
+
+            } catch (err) {
+                console.error(err);
+                showToast("Erro ao buscar coordenadas.", "error");
+            }
         };
 
         // Manual Search Init
