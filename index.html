@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buscador de Provedores v3.4 (Geo INEP)</title>
+    <title>Buscador de Provedores v4.0 (Visual Ajustado)</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -119,6 +119,12 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        
+        /* Popup Custom Style */
+        .leaflet-popup-content-wrapper { border-radius: 0.75rem; padding: 0; overflow: hidden; }
+        .leaflet-popup-content { margin: 0; width: 260px !important; }
+        .leaflet-container a.leaflet-popup-close-button { color: #fff; z-index: 10; font-size: 18px; padding: 8px; }
+        .leaflet-container a.leaflet-popup-close-button:hover { color: #eee; }
     </style>
 
     <!-- Scripts Externos -->
@@ -177,7 +183,7 @@
                     Acessar Painel
                 </button>
             </div>
-            <p class="text-xs text-gray-400 text-center mt-8">G10 Telecom © 2025. Versão Beta 3.4.</p>
+            <p class="text-xs text-gray-400 text-center mt-8">G10 Telecom © 2025. Versão Beta 4.0.</p>
         </div>
     </div>
 
@@ -268,8 +274,8 @@
                         </div>
                     </div>
 
-                    <!-- Métricas -->
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <!-- Métricas (GRID 5 COLUNAS - Média Mbps removida) -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
                         <div class="bg-white p-4 rounded-xl shadow-subtle border-l-4 border-mainBlue-500">
                             <div class="text-gray-500 text-xs font-bold uppercase tracking-wide mb-1">Total Escolas</div>
                             <div class="text-2xl font-bold text-gray-800" id="totalSchools">0</div>
@@ -283,20 +289,34 @@
                             <div class="text-gray-500 text-xs font-bold uppercase tracking-wide mb-1">Municípios</div>
                             <div class="text-2xl font-bold text-gray-800" id="uniqueMunicipalities">0</div>
                         </div>
-                        <div class="bg-white p-4 rounded-xl shadow-subtle border-l-4 border-yellow-500">
-                            <div class="text-gray-500 text-xs font-bold uppercase tracking-wide mb-1">Média Mbps</div>
-                            <div class="text-2xl font-bold text-gray-800" id="avgDownloadMbps">0</div>
+                        <!-- CARD: ATIVOS -->
+                        <div class="bg-white p-4 rounded-xl shadow-subtle border-l-4 border-green-600">
+                            <div class="text-gray-500 text-xs font-bold uppercase tracking-wide mb-1">Ativos</div>
+                            <div class="text-2xl font-bold text-gray-800" id="activeCount">0</div>
+                        </div>
+                        <!-- CARD: PENDENTES -->
+                        <div class="bg-white p-4 rounded-xl shadow-subtle border-l-4 border-red-500">
+                            <div class="text-gray-500 text-xs font-bold uppercase tracking-wide mb-1">Pendentes</div>
+                            <div class="text-2xl font-bold text-gray-800" id="pendingCount">0</div>
                         </div>
                     </div>
 
                     <!-- Filtros e Visualização -->
                     <div class="flex flex-col md:flex-row gap-4 mb-4 items-center justify-between">
                          <div class="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                            <!-- Filtro Estado -->
                             <select id="filterState" class="p-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-mainBlue-500 outline-none shadow-sm min-w-[150px]">
                                 <option value="Todos os Estados">Estado: Todos</option>
                             </select>
+                            <!-- Filtro Município -->
                             <select id="filterMunicipality" disabled class="p-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-mainBlue-500 outline-none shadow-sm min-w-[180px] disabled:bg-gray-100 disabled:text-gray-400">
                                 <option value="Todos os Municípios">Município: Todos</option>
+                            </select>
+                            <!-- Filtro Status -->
+                            <select id="filterStatus" class="p-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-mainBlue-500 outline-none shadow-sm min-w-[150px] font-semibold text-gray-700">
+                                <option value="Todos">Status: Todos</option>
+                                <option value="Ativo" class="text-green-600">✅ Ativos</option>
+                                <option value="Pendente" class="text-red-500">⏳ Pendentes</option>
                             </select>
                          </div>
 
@@ -333,9 +353,12 @@
                                 Clique no mapa para adicionar pontos
                             </div>
 
-                            <p class="text-xs text-gray-400 mt-2 px-2 flex items-center justify-between">
-                                <span><i class="ph ph-info mr-1"></i> As cores representam grupos de proximidade.</span>
-                            </p>
+                            <div class="text-xs text-gray-500 mt-2 px-2 flex items-center justify-between">
+                                <span class="flex items-center gap-2">
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 mr-1"></span> Pendente (Grupos)</span>
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-600 mr-1"></span> Ativo</span>
+                                </span>
+                            </div>
                         </div>
 
                         <!-- LIST CONTAINER -->
@@ -444,6 +467,7 @@
         let currentView = 'list'; 
         let selectedState = 'Todos os Estados';
         let selectedMunicipality = 'Todos os Municípios';
+        let selectedStatus = 'Todos'; // Status filter
         let mapInstance = null;
         let mapMarkers = [];
         let mapCircles = [];
@@ -548,20 +572,17 @@
             if (mapInstance) return;
 
             // 1. Definição das Camadas
-            // Mapa de Estrada (OpenStreetMap)
             const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap',
                 maxZoom: 19
             });
 
-            // Satélite (Google Satellite) - Tem zoom muito melhor
             const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 attribution: '&copy; Google',
-                maxZoom: 22,      // Permite zoom profundo
-                maxNativeZoom: 19 // Se não houver tile no zoom 20+, estica o do 19
+                maxZoom: 22,      
+                maxNativeZoom: 19 
             });
             
-            // Híbrido (Google Hybrid) - Satélite + Ruas
             const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
                 attribution: '&copy; Google',
                 maxZoom: 22,
@@ -694,21 +715,86 @@
             const bounds = L.latLngBounds();
 
             groups.forEach((group, gIndex) => {
-                const color = getColorForGroup(gIndex);
+                const groupColor = getColorForGroup(gIndex);
+                
+                // Draw circle for multi-school groups
                 if (group.schools.length > 1) {
                     let latSum = 0, lonSum = 0;
                     group.schools.forEach(s => { latSum += s.lat; lonSum += s.lon; });
                     const center = [latSum/group.schools.length, lonSum/group.schools.length];
                     const circle = L.circle(center, {
-                        color: color, fillColor: color, fillOpacity: 0.1, radius: 2500, weight: 1
+                        color: groupColor, fillColor: groupColor, fillOpacity: 0.1, radius: 2500, weight: 1
                     }).addTo(mapInstance);
                     mapCircles.push(circle);
                 }
+
                 group.schools.forEach(school => {
+                    // --- NEW COLOR LOGIC v4.0 ---
+                    // Pendente = Group Color (Colored)
+                    // Ativo = Green (#16a34a)
+                    
+                    let markerColor = groupColor; // Default for Pendente (Group Color)
+                    let opacity = 0.9;
+                    
+                    if (school.status === 'Ativo') {
+                        markerColor = '#16a34a'; // Green for Active
+                    }
+
                     const marker = L.circleMarker([school.lat, school.lon], {
-                        radius: 6, fillColor: color, color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.9
+                        radius: 6, 
+                        fillColor: markerColor, 
+                        color: "#fff", 
+                        weight: 2, 
+                        opacity: 1, 
+                        fillOpacity: opacity
                     }).addTo(mapInstance);
-                    marker.bindPopup(`<div class="font-sans text-xs"><strong class="block text-sm text-gray-800">${school.name}</strong><span class="text-gray-500">Grupo ${gIndex + 1}</span><br>${school.municipality} - ${school.state}</div>`);
+
+                    // --- POPUP CONTENT GENERATION ---
+                    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(school.address + ',' + school.municipality)}`;
+                    
+                    const inepBtn = school.inep ? `
+                        <button onclick="window.updateLocationByInep('${school.id}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded border border-gray-200 transition bg-white" title="Atualizar Coord. via INEP (IA)">
+                            <i class="ph ph-crosshair text-lg"></i>
+                        </button>` : '';
+
+                    const statusBadge = school.status === 'Pendente' 
+                        ? `<span class="px-2 py-0.5 rounded bg-red-100 text-red-600 text-[10px] font-bold border border-red-200">PENDENTE</span>`
+                        : `<span class="px-2 py-0.5 rounded bg-green-100 text-green-600 text-[10px] font-bold border border-green-200">ATIVO</span>`;
+
+                    const popupContent = `
+                        <div class="font-sans min-w-[200px] p-1">
+                            <div class="mb-2">
+                                <div class="flex justify-between items-start">
+                                    <strong class="block text-sm text-gray-800 leading-tight mr-2">${school.name}</strong>
+                                    ${statusBadge}
+                                </div>
+                                <span class="text-[10px] text-gray-400 block mt-0.5">Grupo ${gIndex + 1}</span>
+                            </div>
+                            
+                            <div class="text-xs text-gray-600 mb-3 bg-gray-50 p-2 rounded border border-gray-100">
+                                <div class="mb-1">${school.municipality} - ${school.state}</div>
+                                <div class="font-medium text-blue-600 flex items-center gap-1">
+                                    <i class="ph ph-gauge"></i> ${school.vel_download} Mbps
+                                </div>
+                                ${school.inep ? `<div class="mt-1 text-[10px] text-gray-400">INEP: ${school.inep}</div>` : ''}
+                            </div>
+
+                            <div class="flex gap-2 justify-center pt-2 border-t border-gray-100">
+                                ${inepBtn}
+                                <button onclick="window.aiSearch('${school.name}', '${school.municipality}', '${school.state}', 'provider')" class="p-1.5 text-mainBlue-500 hover:bg-mainBlue-50 rounded border border-gray-200 transition bg-white" title="Buscar Provedores">
+                                    <i class="ph ph-wifi-high text-lg"></i>
+                                </button>
+                                <button onclick="window.aiSearch('${school.name}', '${school.municipality}', '${school.state}', 'secretary')" class="p-1.5 text-secondaryBlue-500 hover:bg-secondaryBlue-50 rounded border border-gray-200 transition bg-white" title="Buscar Secretaria">
+                                    <i class="ph ph-student text-lg"></i>
+                                </button>
+                                <a href="${mapUrl}" target="_blank" class="p-1.5 text-green-500 hover:bg-green-50 rounded border border-gray-200 transition bg-white flex items-center justify-center" title="Abrir no Maps">
+                                    <i class="ph ph-map-pin text-lg"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent);
                     bounds.extend([school.lat, school.lon]);
                     mapMarkers.push(marker);
                 });
@@ -788,7 +874,8 @@
             let filtered = schoolData.filter(s => {
                 const matchState = selectedState === 'Todos os Estados' || s.state === selectedState;
                 const matchMuni = selectedMunicipality === 'Todos os Municípios' || s.municipality === selectedMunicipality;
-                return matchState && matchMuni;
+                const matchStatus = selectedStatus === 'Todos' || s.status === selectedStatus;
+                return matchState && matchMuni && matchStatus;
             });
             const groups = groupSchools(filtered, MAX_DISTANCE_KM);
             groupGroups = groups;
@@ -796,9 +883,14 @@
             document.getElementById('totalSchools').textContent = filtered.length;
             document.getElementById('totalGroups').textContent = groups.length;
             document.getElementById('uniqueMunicipalities').textContent = new Set(filtered.map(s=>s.municipality)).size;
-            const vels = filtered.map(s => parseFloat(String(s.vel_download).replace(',','.'))).filter(v => !isNaN(v) && v > 0);
-            const avg = vels.length ? (vels.reduce((a,b)=>a+b,0)/vels.length).toFixed(1) : 0;
-            document.getElementById('avgDownloadMbps').textContent = avg;
+            
+            // Active Count
+            const active = filtered.filter(s => s.status === 'Ativo').length;
+            document.getElementById('activeCount').textContent = active;
+
+            // Pending Count
+            const pending = filtered.filter(s => s.status === 'Pendente').length;
+            document.getElementById('pendingCount').textContent = pending;
 
             const emptyEl = document.getElementById('emptyState');
             const resultsEl = document.getElementById('resultsContainer');
@@ -831,14 +923,18 @@
                         <button onclick="window.updateLocationByInep('${s.id}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded tooltip-trigger" title="Atualizar Coord. via INEP (IA)">
                             <i class="ph ph-crosshair text-lg"></i>
                         </button>` : '';
+                    
+                    const statusBadge = s.status === 'Pendente' 
+                        ? `<span class="ml-2 px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold border border-red-200">PENDENTE</span>`
+                        : `<span class="ml-2 px-2 py-0.5 rounded-full bg-green-100 text-green-600 text-[10px] font-bold border border-green-200">ATIVO</span>`;
 
                     return `
                     <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-50 last:border-0 hover:bg-gray-50 px-4 -mx-4 transition">
                         <div class="mb-2 sm:mb-0">
-                            <div class="font-semibold text-gray-800 text-sm flex items-center gap-2">
+                            <div class="font-semibold text-gray-800 text-sm flex items-center gap-2 flex-wrap">
                                 ${s.name}
+                                ${statusBadge}
                                 ${s.inep ? `<span class="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded border border-gray-300">INEP: ${s.inep}</span>` : ''}
-                                ${s.telefone && s.telefone !== 'N/A' ? `<span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200"><i class="ph ph-phone"></i> ${s.telefone}</span>` : ''}
                             </div>
                             <div class="text-xs text-gray-500 mt-0.5">${s.address}</div>
                             <div class="text-xs text-blue-500 mt-0.5 font-medium">${s.providerName} • ${s.vel_download} Mbps</div>
@@ -927,6 +1023,7 @@
             const telefoneKey = actualColumnNames.TELEFONE; 
             const velKey = actualColumnNames.VEL_DOWNLOAD;
             const inepKey = actualColumnNames.INEP;
+            const statusKey = actualColumnNames.STATUS;
 
             if (!school[latKey] || !school[lonKey]) return null;
 
@@ -937,6 +1034,13 @@
             let lon = fixCoordinate(school[lonKey], 'lon', state);
 
             if (lat === 0 || lon === 0) return null;
+
+            // Normalize Status
+            let statusRaw = school[statusKey] ? String(school[statusKey]).trim() : 'Pendente';
+            let status = 'Pendente'; // Default
+            if (statusRaw.toLowerCase() === 'ativo' || statusRaw.toLowerCase() === 'ok') {
+                status = 'Ativo';
+            }
 
             return {
                 id: `school-${index}`, // Unique ID for updates
@@ -949,7 +1053,8 @@
                 providerName: school[providerKey] || 'N/A', 
                 vel_download: school[velKey] || 'N/A',
                 telefone: school[telefoneKey] || 'N/A',
-                inep: school[inepKey] || null
+                inep: school[inepKey] || null,
+                status: status
             };
         }
 
@@ -994,6 +1099,7 @@
                             actualColumnNames.VEL_DOWNLOAD = findActualKey("Veloc. (Mbps) Dowload", sampleSchool) || findActualKey("Velocidade", sampleSchool) || findActualKey("Speed", sampleSchool);
                             actualColumnNames.TELEFONE = findActualKey("Telefone", sampleSchool) || findActualKey("Fone", sampleSchool);
                             actualColumnNames.INEP = findActualKey("INEP", sampleSchool) || findActualKey("Código INEP", sampleSchool);
+                            actualColumnNames.STATUS = findActualKey("Status", sampleSchool) || findActualKey("Situação", sampleSchool);
 
                             if (!actualColumnNames.LATITUDE || !actualColumnNames.LONGITUDE) {
                                 showToast('Erro: Colunas Latitude/Longitude não encontradas.', 'error');
@@ -1037,6 +1143,8 @@
         });
 
         document.getElementById('filterMunicipality').addEventListener('change', (e) => { selectedMunicipality = e.target.value; renderData(); });
+        
+        document.getElementById('filterStatus').addEventListener('change', (e) => { selectedStatus = e.target.value; renderData(); });
 
         window.exportData = () => {
             if(groupGroups.length === 0) return;
@@ -1044,7 +1152,7 @@
             groupGroups.forEach((g, gIdx) => {
                 g.schools.forEach(s => {
                     rows.push({
-                        "Grupo ID": gIdx + 1, "Cluster Size": g.schools.length, "INEP": s.inep, "Escola": s.name, "Município": s.municipality, "UF": s.state,
+                        "Grupo ID": gIdx + 1, "Cluster Size": g.schools.length, "INEP": s.inep, "Status": s.status, "Escola": s.name, "Município": s.municipality, "UF": s.state,
                         "Latitude": s.lat, "Longitude": s.lon, "Provedor Atual": s.providerName, "Velocidade": s.vel_download, "Endereço": s.address
                     });
                 });
@@ -1203,7 +1311,7 @@
             showToast(`Buscando localização para INEP ${school.inep}...`, "info");
             
             // Construct precise prompt
-            const prompt = `Identify the geographic coordinates (latitude and longitude) for the school with INEP Code ${school.inep} named "${school.name}" in municipality "${school.municipality}" (${school.state}), Brazil. Use reliable sources. Return ONLY the coordinates in this specific format: "LAT: -00.00000, LON: -00.00000". Do not write anything else.`;
+            const prompt = `Search for the school with INEP Code ${school.inep} (${school.name}) in ${school.municipality}-${school.state} on the QEdu website (qedu.org.br) or similar official databases to find its exact geolocation/address. Extract the latitude and longitude. Return ONLY the coordinates in this specific format: "LAT: -00.00000, LON: -00.00000". Do not write anything else.`;
 
             try {
                 const response = await fetch(`${generateContentBaseUrl}${apiKey}`, {
